@@ -45,7 +45,8 @@ const FIELD_DEFINITIONS = {
     rpe: {
         label: "RPE",
         placeholder: "RPE",
-        type: "number"
+        type: "number",
+        step: "0.25"
     },
 
     seconds: {
@@ -69,16 +70,25 @@ const FIELD_DEFINITIONS = {
     },
 
     setType: {
-    label: "Typ serii",
-    placeholder: "Wybierz typ",
-    type: "select",
-    options: [
-        "Normal",
-        "Main",
-        "Back-off",
-        "Warmup"
-    ]
-},
+        label: "Typ serii",
+        placeholder: "Wybierz typ",
+        type: "select",
+        options: [
+            "Top-set",
+            "Main",
+            "Back-off",
+            "Warmup"
+        ]
+    },
+    deadliftStyle: {
+        label: "Styl ciągu",
+        placeholder: "Wybierz styl",
+        type: "select",
+        options: [
+            "Sumo",
+            "Tradycyjny"
+        ]
+    },
 
 };
 
@@ -1544,6 +1554,17 @@ activeExercises.innerHTML =
 attachExerciseEvents();
 }
 
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[char]);
+}
+
 function renderExercise(
     exercise,
     exerciseIndex
@@ -1628,12 +1649,12 @@ function renderExercise(
             ).join("");
 
 
-        const notes =
-            exercise.notes?.trim()
+        
+            const notes = exercise.notes?.trim()
                 ? `
                     <div class="workout-view-notes">
                         <strong>Notatka:</strong>
-                        <span>Dobrze poszlo</span>
+                        <span>${escapeHtml(exercise.notes.trim())}</span>
                     </div>
                 `
                 : "";
@@ -1707,6 +1728,7 @@ function renderExercise(
                                     class="set-field set-${field}"
                                     data-field="${field}"
                                     type="${definition.type}"
+                                    ${definition.step ? `step="${definition.step}"` : ""}
                                     placeholder="${definition.placeholder}"
                                     value="${set[field] ?? ""}"
                                 >
@@ -3664,3 +3686,345 @@ logoutButton.addEventListener(
         await supabaseClient.auth.signOut();
     }
 );
+
+
+/* IMPORT JSON */
+
+const importJsonButton = document.getElementById("importJsonButton");
+const importJsonFile = document.getElementById("importJsonFile");
+
+importJsonButton.addEventListener("click", () => {
+    importJsonFile.value = "";
+    importJsonFile.click();
+});
+
+importJsonFile.addEventListener("change", async () => {
+    const file = importJsonFile.files?.[0];
+    if (!file) return;
+
+    importJsonButton.disabled = true;
+
+    try {
+        const text = await file.text();
+        let json;
+
+        try {
+            json = JSON.parse(text);
+        } catch {
+            throw new Error("Plik nie zawiera poprawnego JSON.");
+        }
+
+        if (json.format !== "traininglog" || json.version !== 1) {
+            throw new Error(
+                'Nieobsługiwany format. Oczekuję "format": "traininglog" i "version": 1.'
+            );
+        }
+
+        // Obsługujemy zarówno wiele treningów, jak i pojedynczy trening.
+        const importedWorkouts = Array.isArray(json.workouts)
+            ? json.workouts
+            : json.workout
+                ? [json.workout]
+                : null;
+
+        if (!importedWorkouts?.length) {
+            throw new Error("JSON nie zawiera żadnych treningów.");
+        }
+
+        const errors = [];
+        const validWorkouts = [];
+
+        importedWorkouts.forEach((workout, wi) => {
+            const label = `Trening ${wi + 1}`;
+
+            if (
+                !workout ||
+                typeof workout.date !== "string" ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(workout.date) ||
+                Number.isNaN(Date.parse(`${workout.date}T00:00:00`))
+            ) {
+                errors.push(`${label}: niepoprawna data (wymagane RRRR-MM-DD).`);
+                return;
+            }
+
+            if (
+                typeof workout.title !== "string" ||
+                !workout.title.trim()
+            ) {
+                errors.push(`${label}: brak nazwy w polu "title".`);
+                return;
+            }
+
+            if (!Array.isArray(workout.exercises)) {
+                errors.push(`${label}: pole "exercises" musi być tablicą.`);
+                return;
+            }
+
+            let invalid = false;
+
+            workout.exercises.forEach((exercise, ei) => {
+                if (
+                    !exercise ||
+                    typeof exercise.name !== "string" ||
+                    !exercise.name.trim()
+                ) {
+                    errors.push(`${label}, ćwiczenie ${ei + 1}: brak nazwy.`);
+                    invalid = true;
+                    return;
+                }
+
+                if (!Array.isArray(exercise.sets)) {
+                    errors.push(
+                        `${label}, ${exercise.name}: pole "sets" musi być tablicą.`
+                    );
+                    invalid = true;
+                    return;
+                }
+
+                exercise.sets.forEach((set, si) => {
+                    if (!set || typeof set !== "object" || Array.isArray(set)) {
+                        errors.push(
+                            `${label}, ${exercise.name}, seria ${si + 1}: niepoprawne dane.`
+                        );
+                        invalid = true;
+                        return;
+                    }
+
+                    for (const [key, value] of Object.entries(set.data ?? set)) {
+                        if (
+                            value !== "" &&
+                            value !== null &&
+                            value !== undefined &&
+                            !["weight", "reps", "rpe", "seconds", "band", "setType"].includes(key)
+                        ) {
+                            errors.push(
+                                `${label}, ${exercise.name}, seria ${si + 1}: nieznane pole "${key}".`
+                            );
+                            invalid = true;
+                        }
+
+                        if (
+                            ["weight", "reps", "rpe", "seconds"].includes(key) &&
+                            value !== "" &&
+                            value !== null &&
+                            value !== undefined &&
+                            (typeof value !== "number" || !Number.isFinite(value))
+                        ) {
+                            errors.push(
+                                `${label}, ${exercise.name}, seria ${si + 1}: "${key}" musi być liczbą.`
+                            );
+                            invalid = true;
+                        }
+                    }
+                });
+            });
+
+            if (!invalid) validWorkouts.push(workout);
+        });
+
+        if (errors.length) {
+            const shown = errors.slice(0, 15).join("\n");
+            const more = errors.length > 15
+                ? `\n... i jeszcze ${errors.length - 15} błędów.`
+                : "";
+
+            alert(
+                `Import przerwany — popraw błędy w pliku:\n\n${shown}${more}`
+            );
+            return;
+        }
+
+        const {
+            data: { user },
+            error: userError
+        } = await supabaseClient.auth.getUser();
+
+        if (userError || !user) {
+            throw new Error("Musisz być zalogowany.");
+        }
+
+        // Istniejące treningi o tej samej dacie i nazwie wymagają decyzji.
+        const duplicates = validWorkouts.filter(item =>
+            workouts.some(existing =>
+                existing.date === item.date &&
+                existing.name.trim().toLowerCase() === item.title.trim().toLowerCase()
+            )
+        );
+
+        let toImport = validWorkouts;
+
+        if (duplicates.length) {
+            const duplicateKeys = new Set(
+                duplicates.map(item =>
+                    `${item.date}|${item.title.trim().toLowerCase()}`
+                )
+            );
+
+            const skipDuplicates = confirm(
+                `Znaleziono ${duplicates.length} treningów z datą i nazwą ` +
+                `pasującą do istniejącej historii.\n\n` +
+                `OK — pomiń treningi o tej samej dacie i nazwie.\n` +
+                `Anuluj — przerwij import.`
+            );
+
+            if (!skipDuplicates) return;
+
+            toImport = validWorkouts.filter(item =>
+                !duplicateKeys.has(
+                    `${item.date}|${item.title.trim().toLowerCase()}`
+                )
+            );
+        }
+
+        if (!toImport.length) {
+            alert("Nie ma nowych treningów do zaimportowania.");
+            return;
+        }
+
+        const setCount = toImport.reduce(
+            (total, workout) =>
+                total + workout.exercises.reduce(
+                    (sum, exercise) => sum + exercise.sets.length,
+                    0
+                ),
+            0
+        );
+
+        const confirmed = confirm(
+            `Podsumowanie importu:\n\n` +
+            `Treningi: ${toImport.length}\n` +
+            `Ćwiczenia w treningach: ${toImport.reduce((n, w) => n + w.exercises.length, 0)}\n` +
+            `Serie: ${setCount}\n\n` +
+            `Czy zapisać te dane w Supabase?`
+        );
+
+        if (!confirmed) return;
+
+        let importedCount = 0;
+
+        for (const item of toImport) {
+            let workoutId = null;
+
+            try {
+                const gymName = typeof item.gym === "string"
+                    ? item.gym.trim().toLowerCase()
+                    : "";
+
+                const matchedGym = gyms.find(gym =>
+                    gym.name.trim().toLowerCase() === gymName
+                );
+
+                const { data: savedWorkout, error: workoutError } =
+                    await supabaseClient
+                        .from("workouts")
+                        .insert({
+                            user_id: user.id,
+                            name: item.title.trim(),
+                            workout_date: item.date,
+                            gym_id: matchedGym?.id ?? null,
+                            notes: Array.isArray(item.notes)
+                                ? item.notes.join("\n")
+                                : (item.notes ?? "")
+                        })
+                        .select()
+                        .single();
+
+                if (workoutError) throw workoutError;
+
+                workoutId = savedWorkout.id;
+
+                for (const [exerciseIndex, exercise] of item.exercises.entries()) {
+                    const definition = exercises.find(e =>
+                        e.name.trim().toLowerCase() ===
+                        exercise.name.trim().toLowerCase()
+                    );
+
+                    // Ćwiczenie może być historyczne i nie mieć definicji w katalogu.
+                    const { data: savedExercise, error: exerciseError } =
+                        await supabaseClient
+                            .from("workout_exercises")
+                            .insert({
+                                workout_id: workoutId,
+                                exercise_id: definition?.id ?? null,
+                                name: exercise.name.trim(),
+                                tag: exercise.tag ?? exercise.variant ?? "",
+                                notes: [
+                                    exercise.variant && exercise.tag
+                                        ? `Wariant: ${exercise.variant}`
+                                        : "",
+                                    exercise.notes ?? ""
+                                ].filter(Boolean).join("\n"),
+                                exercise_order: exerciseIndex
+                            })
+                            .select()
+                            .single();
+
+                    if (exerciseError) throw exerciseError;
+
+                    if (exercise.sets.length) {
+                        
+                        const rows = exercise.sets.map((set, setIndex) => {
+                            const { id, ...rest } = set.data ?? set;
+
+                           
+                            if (typeof rest.setType === "string") {
+                                const options = FIELD_DEFINITIONS.setType.options;
+
+                                const option = options.find(
+                                    value => value.toLowerCase() === rest.setType.toLowerCase()
+                                );
+
+                                if (option) {
+                                    rest.setType = option;
+                                }
+                            }
+
+                            return {
+                                workout_exercise_id: savedExercise.id,
+                                set_order: setIndex,
+                                data: rest
+                            };
+                        });
+
+                        const { error: setsError } =
+                            await supabaseClient
+                                .from("sets")
+                                .insert(rows);
+
+                        if (setsError) throw setsError;
+                    }
+                }
+
+                importedCount++;
+            } catch (error) {
+                console.error("Błąd importu treningu:", error);
+
+                // Spróbuj usunąć niekompletny trening; CASCADE usuwa jego ćwiczenia i serie.
+                if (workoutId !== null) {
+                    const { error: cleanupError } = await supabaseClient
+                        .from("workouts")
+                        .delete()
+                        .eq("id", workoutId);
+
+                    if (cleanupError) {
+                        console.error("Nie udało się wycofać częściowego importu:", cleanupError);
+                    }
+                }
+
+                throw new Error(
+                    `Import zatrzymał się przy treningu "${item.title}". ` +
+                    `Zapisano wcześniej ${importedCount} treningów. Szczegóły w konsoli.`
+                );
+            }
+        }
+
+        await loadDataFromSupabase();
+        alert(`Import zakończony. Dodano ${importedCount} treningów.`);
+    } catch (error) {
+        console.error("Import JSON:", error);
+        alert(error.message || "Nie udało się zaimportować pliku.");
+    } finally {
+        importJsonButton.disabled = false;
+        importJsonFile.value = "";
+    }
+});

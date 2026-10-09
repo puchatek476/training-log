@@ -3,7 +3,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#17191f">
     <title>Training Log</title>
     <link rel="stylesheet" href="style.css">
@@ -65,6 +65,22 @@
             >
                 Siłownie
             </button>
+
+
+            <button
+                type="button"
+                id="importJsonButton"
+                class="button button-secondary"
+            >
+                Importuj
+            </button>
+
+            <input
+                type="file"
+                id="importJsonFile"
+                accept=".json,application/json"
+                hidden
+            />
 
             <button
                 id="logoutButton"
