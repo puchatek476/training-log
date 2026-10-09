@@ -3627,44 +3627,31 @@ loginForm.addEventListener(
 
 
 supabaseClient.auth.onAuthStateChange(
-    async (event, session) => {
+    (event, session) => {
 
-        if (
-            event === "SIGNED_OUT" ||
-            !session
-        ) {
-
-            loginScreen.classList.add(
-                "active"
-            );
-
-            app.classList.add(
-                "hidden"
-            );
-
+        if (event === "SIGNED_OUT") {
+            loginScreen.classList.add("active");
+            app.classList.add("hidden");
             return;
         }
 
-        if (
-            event === "SIGNED_IN" ||
-            event === "TOKEN_REFRESHED"
-        ) {
+        if (session) {
+            loginScreen.classList.remove("active");
+            app.classList.remove("hidden");
 
-            loginScreen.classList.remove(
-                "active"
-            );
-
-            app.classList.remove(
-                "hidden"
-            );
-
-            await loadDataFromSupabase();
-
+            if (
+                event === "SIGNED_IN" ||
+                event === "INITIAL_SESSION" ||
+                event === "TOKEN_REFRESHED"
+            ) {
+                loadDataFromSupabase();
+            }
+        } else {
+            loginScreen.classList.add("active");
+            app.classList.add("hidden");
         }
-
     }
 );
-
 
 checkAuth();
 
