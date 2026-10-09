@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#17191f">
+    <title>Training Log</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+<div id="login-screen">
+    <form id="login-form">
+        <h1>Logowanie</h1>
+
+        <input
+            id="login-email"
+            type="email"
+            placeholder="Email"
+            required
+        >
+
+        <input
+            id="login-password"
+            type="password"
+            placeholder="Hasło"
+            required
+        >
+
+        <button type="submit">
+            Zaloguj
+        </button>
+
+        <p id="login-error"></p>
+    </form>
+</div>
+
+<div class="app">
+
+
+<!-- HISTORIA -->
+<section id="historyView">
+
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">YOUR TRAINING JOURNAL</p>
+            <h1>Training<span>Log</span></h1>
+        </div>
+
+        <div class="header-actions">
+
+            <button
+                id="exercisesTabButton"
+                class="button button-secondary"
+            >
+                Ćwiczenia
+            </button>
+
+            <button
+                id="gymsTabButton"
+                class="button button-secondary"
+            >
+                Siłownie
+            </button>
+
+            <button
+                id="logoutButton"
+                class="button button-secondary"
+            >
+                Wyloguj
+            </button>
+
+        </div>
+    </header>
+
+    <main>
+
+        <section class="intro">
+            <p class="eyebrow">YOUR PROGRESS, TRACKED</p>
+            <h2>Trening po treningu.</h2>
+            <p class="muted">Wszystkie serie. Każdy kilogram.</p>
+        </section>
+
+        <section class="workouts-section">
+
+            <div class="section-heading">
+
+                <div>
+                    <p class="eyebrow">HISTORIA</p>
+                    <h2>Twoje treningi</h2>
+                </div>
+
+                <button id="addWorkoutButton" class="button button-primary">
+                    <span class="plus">+</span>
+                    Nowy trening
+                </button>
+
+            </div>
+
+            <div class="search-panel">
+
+                <label class="search-box">
+                    <span class="search-icon">⌕</span>
+
+                    <input
+                        id="searchInput"
+                        type="search"
+                        placeholder="Szukaj treningu lub ćwiczenia..."
+                        autocomplete="off"
+                    >
+                </label>
+
+                <div class="filters">
+
+                    <label class="filter-control">
+                        <span>Ćwiczenie</span>
+
+                        <select id="exerciseFilter">
+                            <option value="">Wszystkie ćwiczenia</option>
+                        </select>
+                    </label>
+
+                    <label class="filter-control">
+                        <span>Sortowanie</span>
+
+                        <select id="sortFilter">
+                            <option value="newest">Najnowsze</option>
+                            <option value="oldest">Najstarsze</option>
+                            <option value="name">Nazwa A–Z</option>
+                        </select>
+                    </label>
+
+                </div>
+
+            </div>
+
+            <div class="results-heading">
+
+                <span id="resultsCount">Treningi</span>
+
+                <button id="clearFiltersButton" class="text-button">
+                    Wyczyść filtry
+                </button>
+
+            </div>
+
+            <div id="workoutsList" class="workouts-list"></div>
+
+        </section>
+
+    </main>
+
+</section>
+
+<!-- ĆWICZENIA -->
+
+<section id="exercisesView" class="hidden">
+
+    <header class="topbar">
+
+        <div>
+            <p class="eyebrow">TRAINING SETUP</p>
+            <h1>Ćwiczenia</h1>
+        </div>
+
+        <button
+            id="backToHistoryFromExercisesButton"
+            class="button button-secondary"
+        >
+            ← Historia
+        </button>
+
+    </header>
+
+
+    <main>
+
+        <section class="workouts-section">
+
+            <div class="section-heading">
+
+                <div>
+                    <p class="eyebrow">ĆWICZENIA</p>
+                    <h2>Twoje ćwiczenia</h2>
+                    <p class="muted">
+                        Wybierz, jakie pola mają być dostępne podczas zapisywania serii.
+                    </p>
+                </div>
+
+                <button
+                    id="addCustomExerciseButton"
+                    class="button button-primary"
+                >
+                    <span class="plus">+</span>
+                    Dodaj ćwiczenie
+                </button>
+
+            </div>
+
+            <div id="exerciseManagerList" class="exercise-manager-list"></div>
+
+        </section>
+
+    </main>
+
+</section>
+
+<!-- SIŁOWNIE -->
+
+<section id="gymsView" class="hidden">
+
+    <header class="topbar">
+
+        <div>
+            <p class="eyebrow">TRAINING SETUP</p>
+            <h1>Siłownie</h1>
+        </div>
+
+        <button
+            id="backToHistoryFromGymsButton"
+            class="button button-secondary"
+        >
+            ← Historia
+        </button>
+
+    </header>
+
+
+    <main>
+
+        <section class="workouts-section">
+
+            <div class="section-heading">
+
+                <div>
+                    <p class="eyebrow">SIŁOWNIE</p>
+                    <h2>Twoje siłownie</h2>
+                </div>
+
+                <button
+                    id="addGymButton"
+                    class="button button-primary"
+                >
+                    <span class="plus">+</span>
+                    Dodaj siłownię
+                </button>
+
+            </div>
+
+
+            <div id="gymList" class="exercise-manager-list"></div>
+
+        </section>
+
+    </main>
+
+</section>
+
+<!-- KONFIGURACJA ĆWICZENIA -->
+
+<section id="exerciseConfigView" class="hidden">
+
+    <header class="topbar">
+
+        <button
+            id="backToExercisesButton"
+            class="button button-secondary"
+        >
+            ← Ćwiczenia
+        </button>
+
+        <div class="active-title">
+            <p class="eyebrow">KONFIGURACJA</p>
+            <h1 id="configExerciseName">Ćwiczenie</h1>
+        </div>
+
+    </header>
+
+
+    <main>
+
+        <section class="workouts-section">
+
+            <div class="section-heading">
+
+                <div>
+                    <p class="eyebrow">POLA SERII</p>
+                    <h2>Co chcesz zapisywać?</h2>
+                    <p class="muted">
+                        Włącz tylko te wartości, których potrzebujesz.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div
+                id="exerciseFieldsList"
+                class="exercise-fields-list"
+            ></div>
+
+
+            <div class="dialog-actions">
+
+                <button
+                    id="saveExerciseConfigButton"
+                    class="button button-primary"
+                >
+                    Zapisz ustawienia
+                </button>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</section>
+
+<!-- AKTYWNY TRENING -->
+<section id="activeWorkoutView" class="active-workout-view hidden">
+
+    <header class="active-header">
+
+        <button id="backToHistoryButton" class="button button-secondary">
+            ← Historia
+        </button>
+
+        <div class="active-title">
+
+            <p id="activeWorkoutEyebrow" class="eyebrow">
+                TRENING
+            </p>
+
+            <div class="editable-workout-field" data-field="name">
+                <h1 id="activeWorkoutName">
+                    Trening
+                </h1>
+                <button
+                    type="button"
+                    class="inline-edit-button"
+                    aria-label="Edytuj nazwę"
+                >
+                    ✎
+                </button>
+            </div>
+
+            <div class="editable-workout-field" data-field="date">
+                <p id="activeWorkoutDate" class="muted">
+                    08/10/2026
+                </p>
+                <button
+                    type="button"
+                    class="inline-edit-button"
+                    aria-label="Edytuj datę"
+                >
+                    ✎
+                </button>
+            </div>
+
+        </div>
+
+        <div class="active-header-actions">
+
+    <button
+        id="editWorkoutButton"
+        class="button button-secondary"
+        type="button"
+    >
+        Edytuj
+    </button>
+
+    <button
+        id="finishWorkoutButton"
+        class="button button-primary"
+    >
+        Wyjdź
+    </button>
+
+</div>
+
+    </header>
+
+
+    <main class="active-main">
+
+    <div id="activeExercises"></div>
+
+    <button id="addExerciseButton" class="add-exercise-button">
+        <span>+</span>
+        Dodaj ćwiczenie
+    </button>
+
+
+    <section class="workout-notes-section">
+
+        <label class="form-field">
+
+            Notatki treningu
+
+            <textarea
+                id="activeWorkoutNotes"
+                placeholder="Notatki dotyczące całego treningu..."
+                rows="5"
+            ></textarea>
+
+        </label>
+
+    </section>
+
+    <button
+        id="deleteWorkoutButton"
+        class="button button-danger"
+    >
+        Usuń trening
+    </button>
+
+</main>
+
+</section>
+
+
+</div>
+
+
+<dialog id="editWorkoutDialog">
+
+    <form
+        method="dialog"
+        id="editWorkoutForm"
+    >
+
+        <h2>Edytuj trening</h2>
+
+        <label class="form-field">
+
+            Nazwa treningu
+
+            <input
+                id="editWorkoutName"
+                type="text"
+                required
+            >
+
+        </label>
+
+        <label class="form-field">
+
+            Data
+
+            <input
+                id="editWorkoutDate"
+                type="text"
+                placeholder="DD/MM/RRRR"
+                required
+            >
+
+        </label>
+
+        <label class="form-field">
+
+            Siłownia
+
+            <select id="editWorkoutGym"></select>
+
+        </label>
+
+        <div class="dialog-actions">
+
+            <button
+                type="button"
+                id="cancelEditWorkoutButton"
+                class="button button-secondary"
+            >
+                Anuluj
+            </button>
+
+            <button
+                type="submit"
+                class="button button-primary"
+            >
+                Zapisz
+            </button>
+
+        </div>
+
+    </form>
+
+</dialog>
+
+<!-- NOWY TRENING -->
+
+<dialog id="workoutDialog" class="dialog">
+
+
+<form id="workoutForm">
+
+    <div class="dialog-heading">
+
+        <div>
+            <p class="eyebrow">NOWY WPIS</p>
+            <h2>Dodaj trening</h2>
+        </div>
+
+        <button
+            type="button"
+            class="icon-button"
+            id="closeDialogButton"
+            aria-label="Zamknij"
+        >
+            ×
+        </button>
+
+    </div>
+
+
+    <label class="form-field">
+
+        Nazwa treningu
+
+        <input
+            id="workoutName"
+            type="text"
+            placeholder="np. Bench"
+            maxlength="80"
+        >
+
+    </label>
+    <label class="form-field">
+
+        Siłownia
+
+        <select id="workoutGym">
+        </select>
+
+    </label>
+
+
+    <label class="form-field">
+
+        Data
+
+        <input
+            id="workoutDate"
+            type="text"
+            placeholder="dd/mm/rrrr"
+            required
+            maxlength="10"
+            inputmode="numeric"
+        >
+
+    </label>
+
+
+    <div class="dialog-actions">
+
+        <button
+            type="button"
+            class="button button-secondary"
+            id="cancelDialogButton"
+        >
+            Anuluj
+        </button>
+
+        <button
+            id="saveWorkoutButton"
+            type="submit"
+            class="button button-primary"
+        >
+            Utwórz trening
+        </button>
+
+    </div>
+
+</form>
+
+
+</dialog>
+
+<!-- DODAWANIE ĆWICZENIA -->
+
+<dialog id="exerciseDialog" class="dialog">
+
+
+<form id="exerciseForm">
+
+    <div class="dialog-heading">
+
+        <div>
+            <p class="eyebrow">NOWE ĆWICZENIE</p>
+            <h2>Dodaj ćwiczenie</h2>
+        </div>
+
+        <button
+            type="button"
+            class="icon-button"
+            id="closeExerciseDialogButton"
+        >
+            ×
+        </button>
+
+    </div>
+
+
+    <label class="form-field">
+
+        Ćwiczenie
+
+        <select id="exerciseSelect"></select>
+
+    </label>
+
+
+    <div class="dialog-actions">
+
+        <button
+            type="button"
+            class="button button-secondary"
+            id="cancelExerciseButton"
+        >
+            Anuluj
+        </button>
+
+        <button
+            type="submit"
+            class="button button-primary"
+        >
+            Dodaj
+        </button>
+
+    </div>
+
+</form>
+
+
+</dialog>
+
+<!-- NOWE WŁASNE ĆWICZENIE -->
+
+<dialog id="customExerciseDialog" class="dialog">
+
+    <form id="customExerciseForm">
+
+        <div class="dialog-heading">
+
+            <div>
+                <p class="eyebrow">NOWE ĆWICZENIE</p>
+                <h2>Dodaj własne</h2>
+            </div>
+
+            <button
+                type="button"
+                class="icon-button"
+                id="closeCustomExerciseDialogButton"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <label class="form-field">
+
+            Nazwa ćwiczenia
+
+            <input
+                id="customExerciseName"
+                type="text"
+                placeholder="np. Plank"
+                maxlength="80"
+                required
+            >
+
+        </label>
+
+
+        <div class="dialog-actions">
+
+            <button
+                type="button"
+                class="button button-secondary"
+                id="cancelCustomExerciseButton"
+            >
+                Anuluj
+            </button>
+
+            <button
+                type="submit"
+                class="button button-primary"
+            >
+                Dodaj
+            </button>
+
+        </div>
+
+    </form>
+
+</dialog>
+<!-- NOWA SIŁOWNIA -->
+
+<dialog id="gymDialog" class="dialog">
+
+    <form id="gymForm">
+
+        <div class="dialog-heading">
+
+            <div>
+                <p class="eyebrow">NOWA SIŁOWNIA</p>
+                <h2>Dodaj siłownię</h2>
+            </div>
+
+            <button
+                type="button"
+                class="icon-button"
+                id="closeGymDialogButton"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <label class="form-field">
+
+            Nazwa siłowni
+
+            <input
+                id="gymName"
+                type="text"
+                placeholder="np. CityFit Wrocław"
+                maxlength="80"
+                required
+            >
+
+        </label>
+
+
+        <div class="dialog-actions">
+
+            <button
+                type="button"
+                class="button button-secondary"
+                id="cancelGymButton"
+            >
+                Anuluj
+            </button>
+
+            <button
+                type="submit"
+                class="button button-primary"
+            >
+                Dodaj
+            </button>
+
+        </div>
+
+    </form>
+
+</dialog>
+</body>
+</html>
