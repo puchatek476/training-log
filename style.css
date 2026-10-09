@@ -655,20 +655,33 @@ background: rgba(247, 120, 101, 0.04);
 .topbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
+    padding-top: 16px;
+    padding-bottom: 12px;
 }
 
 .header-actions {
     width: 100%;
+    display: flex;
+    flex-wrap: wrap;
     justify-content: stretch;
+    gap: 6px;
 }
 
 .header-actions > * {
-    flex: 1 1 calc(50% - 8px);
+    flex: 1 1 calc(50% - 6px);
     min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.2;
 }
 
 .header-actions #logoutButton {
     flex-basis: 100%;
+    width: 100%;
 }
 
 .section-heading {
