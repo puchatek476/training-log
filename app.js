@@ -234,6 +234,9 @@ const sortFilter = document.querySelector("#sortFilter");
 const workoutsList = document.querySelector("#workoutsList");
 const resultsCount = document.querySelector("#resultsCount");
 const clearFiltersButton = document.querySelector("#clearFiltersButton");
+const backToCurrentWorkoutButton = document.querySelector("#backToCurrentWorkoutButton");
+
+let returnToWorkoutId = null;
 
 const workoutDialog = document.querySelector("#workoutDialog");
 const workoutForm = document.querySelector("#workoutForm");
@@ -1154,6 +1157,77 @@ cancelCustomExerciseButton.addEventListener(
 
 /* HISTORY */
 
+function openExerciseHistory(name) {
+
+    if (!name) return;
+
+    returnToWorkoutId = activeWorkoutId;
+
+    activeWorkoutId = null;
+    activeWorkoutView.classList.add("hidden");
+    historyView.classList.remove("hidden");
+
+    exerciseFilter.value = name;
+    searchInput.value = "";
+
+    renderWorkouts();
+    updateReturnToWorkoutButton();
+
+}
+
+function updateReturnToWorkoutButton() {
+
+    if (!backToCurrentWorkoutButton) return;
+
+    const shouldShow = Boolean(returnToWorkoutId);
+
+    backToCurrentWorkoutButton.classList.toggle("hidden", !shouldShow);
+
+}
+
+function returnToCurrentWorkout() {
+
+    if (!returnToWorkoutId) return;
+
+    const targetWorkoutId = returnToWorkoutId;
+    returnToWorkoutId = null;
+    exerciseFilter.value = "";
+    searchInput.value = "";
+    updateReturnToWorkoutButton();
+
+    openWorkout(targetWorkoutId);
+
+}
+
+function attachExerciseHistoryLinks() {
+
+    document
+        .querySelectorAll("[data-exercise-history-name]")
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                event => {
+                    event.stopPropagation();
+                    openExerciseHistory(button.dataset.exerciseHistoryName);
+                }
+            );
+
+            button.addEventListener(
+                "keydown",
+                event => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openExerciseHistory(button.dataset.exerciseHistoryName);
+                    }
+                }
+            );
+
+        });
+
+}
+
 function renderWorkouts() {
 
 
@@ -1230,14 +1304,34 @@ if (!filtered.length) {
 workoutsList.innerHTML =
     filtered.map(workout => {
 
+        const visibleExercises =
+            exerciseFilterValue
+                ? workout.exercises.filter(
+                    exercise =>
+                        exercise.name === exerciseFilterValue
+                )
+                : workout.exercises;
+
         const exerciseTags =
-            workout.exercises
+            visibleExercises
                 .map(
                     exercise =>
-                        `<span class="exercise-tag">${exercise.name}</span>`
+                        `<button
+                            type="button"
+                            class="exercise-pill"
+                            data-exercise-history-name="${escapeHtml(exercise.name)}"
+                        >
+                            ${exercise.name}
+                        </button>`
                 )
                 .join("");
 
+        const matchingExerciseMarkup =
+            exerciseFilterValue
+                ? `<div class="exercise-history-compact">${visibleExercises
+                    .map(exercise => renderExercise(exercise, 0))
+                    .join("")}</div>`
+                : "";
 
         return `
             <article
@@ -1263,11 +1357,13 @@ workoutsList.innerHTML =
 
 
                 ${
-                    exerciseTags
-                        ? `<div class="workout-exercises">
-                            ${exerciseTags}
-                           </div>`
-                        : ""
+                    exerciseFilterValue
+                        ? matchingExerciseMarkup || "<p class=\"muted\">Brak ćwiczenia w tym treningu.</p>"
+                        : exerciseTags
+                            ? `<div class="workout-exercises">
+                                ${exerciseTags}
+                               </div>`
+                            : ""
                 }
 
             </article>
@@ -1293,25 +1389,35 @@ document
 
     });
 
+    attachExerciseHistoryLinks();
+
 
 }
 
 /* OPEN WORKOUT */
 
-function openWorkout(id) {
+function openWorkout(id, startEditing = false) {
+
+    if (returnToWorkoutId !== null && id !== returnToWorkoutId) {
+        returnToWorkoutId = null;
+        updateReturnToWorkoutButton();
+    }
 
     activeWorkoutId = id;
-    
-    isWorkoutEditing = false;
 
-    addExerciseButton.classList.add("hidden");
-    
-    editWorkoutButton.textContent =
-        "Edytuj";
+    isWorkoutEditing = Boolean(startEditing);
 
-    document.body.classList.remove(
-        "editing-workout"
-    );  
+    if (isWorkoutEditing) {
+        editWorkoutButton.textContent =
+            "Zakończ edycję";
+        addExerciseButton.classList.remove("hidden");
+        document.body.classList.add("editing-workout");
+    } else {
+        addExerciseButton.classList.add("hidden");
+        editWorkoutButton.textContent =
+            "Edytuj";
+        document.body.classList.remove("editing-workout");
+    }
 
     const workout =
         workouts.find(
@@ -1356,6 +1462,13 @@ function openWorkout(id) {
 
 
     renderActiveWorkout();
+
+    window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "auto"
+    });
+
     addExerciseButton.classList.toggle(
         "hidden",
         !isWorkoutEditing
@@ -1552,6 +1665,7 @@ activeExercises.innerHTML =
 
 
 attachExerciseEvents();
+attachExerciseHistoryLinks();
 }
 
 
@@ -1588,48 +1702,57 @@ function renderExercise(
 
     if (!isWorkoutEditing) {
 
+        const groupedSets = [];
+
+        sets.forEach((set, setIndex) => {
+            const type = set.setType || "";
+            const lastGroup = groupedSets[groupedSets.length - 1];
+
+            if (lastGroup && lastGroup.type === type && type !== "") {
+                lastGroup.items.push({ set, setIndex });
+                return;
+            }
+
+            groupedSets.push({
+                type,
+                items: [{ set, setIndex }]
+            });
+        });
+
         const setRows =
-            sets.map(
-                (set, setIndex) => {
+            groupedSets.map((group) => {
+                const rowsHtml = group.items.map(({ set, setIndex }) => {
+                    const primaryBits = [];
+                    if (set.weight !== "" && set.weight !== null && set.weight !== undefined) {
+                        primaryBits.push(`${set.weight} kg`);
+                    }
+                    if (set.reps !== "" && set.reps !== null && set.reps !== undefined) {
+                        primaryBits.push(`${set.reps}`);
+                    }
 
-                    const values =
-                        fields
-                            .map(field => {
+                    const secondaryBits = [];
 
-                                const value =
-                                    set[field];
+                    if (set.band !== "" && set.band !== null && set.band !== undefined) {
+                        secondaryBits.push(`Guma: ${set.band}`);
+                    }
 
-                                if (
-                                    value === "" ||
-                                    value === null ||
-                                    value === undefined
-                                ) {
-                                    return null;
+                    if (set.seconds !== "" && set.seconds !== null && set.seconds !== undefined) {
+                        secondaryBits.push(`${set.seconds} sek.`);
+                    }
+
+                    const primaryText =
+                        primaryBits.length
+                            ? (() => {
+                                const repsIndex = primaryBits.lastIndexOf(`${set.reps}`);
+                                const parts = [...primaryBits];
+
+                                if (set.rpe !== "" && set.rpe !== null && set.rpe !== undefined && repsIndex >= 0) {
+                                    parts[repsIndex] = `${set.reps} @${set.rpe}`;
                                 }
 
-                                const definition =
-                                    FIELD_DEFINITIONS[field];
-
-                                if (field === "weight") {
-                                    return `${value} kg`;
-                                }
-
-                                if (field === "reps") {
-                                    return `${value} powt.`;
-                                }
-
-                                if (field === "rpe") {
-                                    return `RPE ${value}`;
-                                }
-
-                                if (field === "seconds") {
-                                    return `${value} sek.`;
-                                }
-
-                                return `${definition.label}: ${value}`;
-
-                            })
-                            .filter(Boolean);
+                                return parts.join(" × ");
+                            })()
+                            : "—";
 
                     return `
                         <div class="workout-view-set">
@@ -1638,15 +1761,37 @@ function renderExercise(
                                 ${setIndex + 1}.
                             </span>
 
-                            <span>
-                                ${values.join(" · ") || "—"}
-                            </span>
+                            <div class="workout-view-set-values">
+                                <div class="workout-view-primary-line">
+                                    ${primaryText}
+                                </div>
+
+                                ${secondaryBits.length
+                                    ? `<div class="workout-view-secondary-line">
+                                        ${secondaryBits.join(" · ")}
+                                      </div>`
+                                    : ""
+                                }
+                            </div>
 
                         </div>
                     `;
+                }).join("");
 
-                }
-            ).join("");
+                const typeBadge =
+                    group.type
+                        ? `<span class="workout-view-type-pill">${escapeHtml(group.type)}</span>`
+                        : "";
+
+                return `
+                    <div class="workout-view-group">
+                        <div class="workout-view-group-items">
+                            ${rowsHtml}
+                        </div>
+                        ${typeBadge}
+                    </div>
+                `;
+            }).join("");
 
 
         
@@ -1663,7 +1808,12 @@ function renderExercise(
         return `
             <section class="workout-view-exercise">
 
-                <h2>
+                <h2
+                    class="exercise-name-trigger"
+                    data-exercise-history-name="${escapeHtml(exercise.name)}"
+                    tabindex="0"
+                    role="button"
+                >
                     ${exercise.name}
                 </h2>
 
@@ -2823,7 +2973,8 @@ workoutForm.addEventListener(
 
 
         openWorkout(
-            newWorkout.id
+            newWorkout.id,
+            true
         );
 
     }
@@ -2935,7 +3086,6 @@ exerciseForm.addEventListener(
                     workout_id: workout.id,
                     exercise_id: exerciseData?.id ?? null,
                     name: selectedExercise.name,
-                    tag: "",
                     notes: "",
                     exercise_order:
                         workout.exercises.length
@@ -3041,8 +3191,6 @@ exerciseForm.addEventListener(
 
             name:
                 selectedExercise.name,
-
-            tag: "",
 
             notes: "",
 
@@ -3226,12 +3374,21 @@ clearFiltersButton.addEventListener(
     exerciseFilter.value = "";
 
     sortFilter.value = "newest";
+    returnToWorkoutId = null;
+    updateReturnToWorkoutButton();
 
     refreshApp();
 
 }
 
 
+);
+
+backToCurrentWorkoutButton.addEventListener(
+    "click",
+    () => {
+        returnToCurrentWorkout();
+    }
 );
 
 /* LOAD DATA FROM SUPABASE */
@@ -3511,9 +3668,6 @@ async function loadDataFromSupabase() {
                                     name:
                                         exercise.name,
 
-                                    tag:
-                                        exercise.tag,
-
                                     notes:
                                         exercise.notes,
 
@@ -3688,10 +3842,48 @@ logoutButton.addEventListener(
 );
 
 
-/* IMPORT JSON */
+/* IMPORT / EXPORT JSON */
 
 const importJsonButton = document.getElementById("importJsonButton");
+const exportJsonButton = document.getElementById("exportJsonButton");
 const importJsonFile = document.getElementById("importJsonFile");
+
+function buildExportPayload() {
+    return {
+        format: "traininglog",
+        version: 1,
+        workouts: workouts.map(workout => ({
+            date: workout.date,
+            title: workout.name,
+            gym: workout.gym || "",
+            notes: workout.notes || "",
+            exercises: (workout.exercises || []).map(exercise => ({
+                name: exercise.name,
+                notes: exercise.notes || "",
+                sets: (exercise.sets || []).map(set => ({
+                    data: Object.fromEntries(
+                        Object.entries(set).filter(([key]) => key !== "id")
+                    )
+                }))
+            }))
+        }))
+    };
+}
+
+exportJsonButton.addEventListener("click", () => {
+    const payload = buildExportPayload();
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `traininglog-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+});
 
 importJsonButton.addEventListener("click", () => {
     importJsonFile.value = "";
@@ -3947,13 +4139,7 @@ importJsonFile.addEventListener("change", async () => {
                                 workout_id: workoutId,
                                 exercise_id: definition?.id ?? null,
                                 name: exercise.name.trim(),
-                                tag: exercise.tag ?? exercise.variant ?? "",
-                                notes: [
-                                    exercise.variant && exercise.tag
-                                        ? `Wariant: ${exercise.variant}`
-                                        : "",
-                                    exercise.notes ?? ""
-                                ].filter(Boolean).join("\n"),
+                                notes: exercise.notes ?? "",
                                 exercise_order: exerciseIndex
                             })
                             .select()
