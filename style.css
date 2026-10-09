@@ -1153,6 +1153,10 @@ background: rgba(247, 120, 101, 0.04);
     font-size: 15px;
 }
 
+.workout-view-set--max-weight .workout-view-primary-line {
+    font-weight: 900;
+}
+
 .workout-view-set + .workout-view-set {
     margin-top: 8px;
 }
@@ -1256,9 +1260,13 @@ background: rgba(247, 120, 101, 0.04);
 
 .exercise-history-compact .workout-view-primary-line {
     color: var(--text);
-    font-weight: 700;
+    font-weight: 400;
     line-height: 1.15;
     font-size: 12px;
+}
+
+.exercise-history-compact .workout-view-set--max-weight .workout-view-primary-line {
+    font-weight: 800;
 }
 
 .exercise-history-compact .workout-view-secondary-line {

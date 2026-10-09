@@ -1329,7 +1329,7 @@ workoutsList.innerHTML =
         const matchingExerciseMarkup =
             exerciseFilterValue
                 ? `<div class="exercise-history-compact">${visibleExercises
-                    .map(exercise => renderExercise(exercise, 0))
+                    .map(exercise => renderExercise(exercise, 0, true))
                     .join("")}</div>`
                 : "";
 
@@ -1681,7 +1681,8 @@ function escapeHtml(value) {
 
 function renderExercise(
     exercise,
-    exerciseIndex
+    exerciseIndex,
+    highlightMaxWeight = false
 ) {
 
     const sets =
@@ -1704,6 +1705,22 @@ function renderExercise(
 
         const groupedSets = [];
 
+        const getNumericWeight = set => {
+            if (set.weight === null || set.weight === undefined || String(set.weight).trim() === "") {
+                return null;
+            }
+
+            const numericWeight = Number(set.weight);
+            return Number.isFinite(numericWeight) ? numericWeight : null;
+        };
+
+        const maxWeight = highlightMaxWeight ? sets.reduce((highest, set) => {
+            const numericWeight = getNumericWeight(set);
+            return numericWeight === null
+                ? highest
+                : highest === null ? numericWeight : Math.max(highest, numericWeight);
+        }, null) : null;
+
         sets.forEach((set, setIndex) => {
             const type = set.setType || "";
             const lastGroup = groupedSets[groupedSets.length - 1];
@@ -1722,6 +1739,9 @@ function renderExercise(
         const setRows =
             groupedSets.map((group) => {
                 const rowsHtml = group.items.map(({ set, setIndex }) => {
+                    const numericWeight = getNumericWeight(set);
+                    const isMaxWeightSet = maxWeight !== null && numericWeight !== null && Math.abs(numericWeight - maxWeight) < 1e-9;
+
                     const primaryBits = [];
                     if (set.weight !== "" && set.weight !== null && set.weight !== undefined) {
                         primaryBits.push(`${set.weight} kg`);
@@ -1755,7 +1775,7 @@ function renderExercise(
                             : "—";
 
                     return `
-                        <div class="workout-view-set">
+                        <div class="workout-view-set ${isMaxWeightSet ? "workout-view-set--max-weight" : ""}">
 
                             <span class="workout-view-set-number">
                                 ${setIndex + 1}.
