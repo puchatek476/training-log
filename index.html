@@ -63,6 +63,13 @@
             </button>
 
             <button
+                id="statisticsViewButton"
+                class="button button-secondary"
+            >
+                Statystyki
+            </button>
+
+            <button
                 id="weeklyViewButton"
                 class="button button-secondary"
             >
@@ -215,6 +222,42 @@
     <main>
         <section class="workouts-section">
             <div id="weeklyWorkoutList" class="weekly-workout-list"></div>
+        </section>
+    </main>
+
+</section>
+
+<!-- STATYSTYKI -->
+
+<section id="statisticsView" class="hidden">
+
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">POSTĘPY</p>
+            <h1>Statystyki</h1>
+        </div>
+
+        <button
+            id="backToHistoryFromStatisticsButton"
+            class="button button-secondary"
+        >
+            ← Historia
+        </button>
+    </header>
+
+    <main>
+        <section class="workouts-section statistics-section">
+            <div class="statistics-controls">
+                <label class="filter-control" for="statisticsExerciseSelect">
+                    Ćwiczenie
+                    <select id="statisticsExerciseSelect"></select>
+                </label>
+            </div>
+            <section class="statistics-chart-card" aria-labelledby="statisticsChartTitle">
+                <h2 id="statisticsChartTitle">Maksymalny ciężar na treningu</h2>
+                <p class="muted">Największy zapisany ciężar dla ćwiczenia w każdym treningu.</p>
+                <div id="exerciseWeightChart"></div>
+            </section>
         </section>
     </main>
 

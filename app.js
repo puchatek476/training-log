@@ -148,6 +148,21 @@ const backToHistoryFromWeeklyButton =
 const weeklyWorkoutList =
     document.querySelector("#weeklyWorkoutList");
 
+const statisticsView =
+    document.querySelector("#statisticsView");
+
+const statisticsViewButton =
+    document.querySelector("#statisticsViewButton");
+
+const backToHistoryFromStatisticsButton =
+    document.querySelector("#backToHistoryFromStatisticsButton");
+
+const statisticsExerciseSelect =
+    document.querySelector("#statisticsExerciseSelect");
+
+const exerciseWeightChart =
+    document.querySelector("#exerciseWeightChart");
+
 const exerciseConfigView =
     document.querySelector("#exerciseConfigView");
 
@@ -1225,11 +1240,15 @@ function renderWeeklyWorkoutList() {
             month: "long"
         }).format(date);
         const dayWorkouts = workouts.filter(workout => workout.date === dateKey);
+        const isToday = dateKey === getTodayInternal();
 
         return `
             <article class="weekly-day">
                 <div class="weekly-day-heading">
-                    <h2>${escapeHtml(weekday)}</h2>
+                    <div class="weekly-day-title">
+                        <h2>${escapeHtml(weekday)}</h2>
+                        ${isToday ? '<span class="weekly-today-badge">DZISIAJ</span>' : ""}
+                    </div>
                     <p>${escapeHtml(formattedDate)}</p>
                 </div>
                 <ul class="weekly-workout-names">
@@ -1240,6 +1259,108 @@ function renderWeeklyWorkoutList() {
     });
 
     weeklyWorkoutList.innerHTML = days.join("");
+}
+
+function renderStatistics() {
+    const exerciseNames = [...new Set(exercises.map(exercise => exercise.name))]
+        .sort((a, b) => a.localeCompare(b, "pl"));
+    const selectedExercise = statisticsExerciseSelect.value;
+
+    statisticsExerciseSelect.innerHTML = exerciseNames
+        .map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+        .join("");
+
+    if (!exerciseNames.length) {
+        exerciseWeightChart.innerHTML = `
+            <p class="muted">Brak ćwiczeń do wyświetlenia.</p>
+        `;
+        return;
+    }
+
+    statisticsExerciseSelect.value = exerciseNames.includes(selectedExercise)
+        ? selectedExercise
+        : exerciseNames[0];
+
+    renderExerciseWeightChart(statisticsExerciseSelect.value);
+}
+
+function renderExerciseWeightChart(exerciseName) {
+    const dataPoints = workouts.flatMap(workout => {
+        const sets = workout.exercises
+            .filter(exercise => exercise.name === exerciseName)
+            .flatMap(exercise => exercise.sets || []);
+        const weights = sets
+            .filter(set => set.weight !== "" && set.weight !== null && set.weight !== undefined)
+            .map(set => Number(set.weight))
+            .filter(weight => Number.isFinite(weight) && weight >= 0);
+
+        return weights.length
+            ? [{ date: workout.date, name: workout.name, weight: Math.max(...weights) }]
+            : [];
+    }).sort((a, b) => a.date.localeCompare(b.date));
+
+    if (!dataPoints.length) {
+        exerciseWeightChart.innerHTML = `
+            <p class="muted">Brak zapisanych ciężarów dla ćwiczenia „${escapeHtml(exerciseName)}”.</p>
+        `;
+        return;
+    }
+
+    const width = Math.max(320, Math.min(760, exerciseWeightChart.clientWidth));
+    const height = width < 500 ? 280 : 360;
+    const left = 64;
+    const right = 24;
+    const top = 24;
+    const bottom = 62;
+    const plotWidth = width - left - right;
+    const plotHeight = height - top - bottom;
+    const weights = dataPoints.map(point => point.weight);
+    const minWeight = Math.min(...weights);
+    const maxWeight = Math.max(...weights);
+    const padding = Math.max((maxWeight - minWeight) * 0.15, maxWeight * 0.05, 1);
+    const minScale = Math.max(0, minWeight - padding);
+    const maxScale = maxWeight + padding;
+    const scaleRange = maxScale - minScale;
+    const getX = index => dataPoints.length === 1
+        ? left + plotWidth / 2
+        : left + (index / (dataPoints.length - 1)) * plotWidth;
+    const getY = weight => top + ((maxScale - weight) / scaleRange) * plotHeight;
+    const tickCount = 4;
+    const gridLines = Array.from({ length: tickCount + 1 }, (_, index) => {
+        const y = top + (index / tickCount) * plotHeight;
+        const weight = maxScale - (index / tickCount) * scaleRange;
+        return `
+            <line class="statistics-grid-line" x1="${left}" y1="${y}" x2="${width - right}" y2="${y}"></line>
+            <text class="statistics-axis-label" x="${left - 10}" y="${y + 4}" text-anchor="end">${weight.toFixed(1)}</text>
+        `;
+    }).join("");
+    const linePoints = dataPoints
+        .map((point, index) => `${getX(index)},${getY(point.weight)}`)
+        .join(" ");
+    const labelStep = Math.max(1, Math.ceil(dataPoints.length / 6));
+    const points = dataPoints.map((point, index) => {
+        const x = getX(index);
+        const y = getY(point.weight);
+        const showDate = index % labelStep === 0 || index === dataPoints.length - 1;
+
+        return `
+            <circle class="statistics-point" cx="${x}" cy="${y}" r="5">
+                <title>${escapeHtml(point.name)} — ${escapeHtml(formatDate(point.date))}: ${point.weight} kg</title>
+            </circle>
+            ${showDate
+                ? `<text class="statistics-axis-label statistics-date-label" x="${x}" y="${height - 24}" text-anchor="middle">${escapeHtml(formatDate(point.date))}</text>`
+                : ""}
+        `;
+    }).join("");
+
+    exerciseWeightChart.innerHTML = `
+        <svg class="statistics-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Wykres maksymalnego ciężaru dla ćwiczenia ${escapeHtml(exerciseName)} w kolejnych treningach">
+            ${gridLines}
+            <polyline class="statistics-chart-line" points="${linePoints}"></polyline>
+            ${points}
+            <text class="statistics-axis-title" x="16" y="${top + plotHeight / 2}" text-anchor="middle" transform="rotate(-90 16 ${top + plotHeight / 2})">kg</text>
+        </svg>
+    `;
 }
 
 function returnToCurrentWorkout() {
@@ -3329,6 +3450,39 @@ backToHistoryButton.addEventListener(
 
 /* EXERCISE NAVIGATION */
 
+statisticsViewButton.addEventListener(
+    "click",
+    () => {
+        historyView.classList.add("hidden");
+        exercisesView.classList.add("hidden");
+        exerciseConfigView.classList.add("hidden");
+        gymsView.classList.add("hidden");
+        weeklyView.classList.add("hidden");
+        statisticsView.classList.remove("hidden");
+
+        renderStatistics();
+    }
+);
+
+backToHistoryFromStatisticsButton.addEventListener(
+    "click",
+    () => {
+        statisticsView.classList.add("hidden");
+        historyView.classList.remove("hidden");
+    }
+);
+
+statisticsExerciseSelect.addEventListener(
+    "change",
+    () => renderExerciseWeightChart(statisticsExerciseSelect.value)
+);
+
+window.addEventListener("resize", () => {
+    if (!statisticsView.classList.contains("hidden") && statisticsExerciseSelect.value) {
+        renderExerciseWeightChart(statisticsExerciseSelect.value);
+    }
+});
+
 weeklyViewButton.addEventListener(
     "click",
     () => {
@@ -3836,6 +3990,9 @@ populateGymSelect();
 
 renderWorkouts();
 
+if (!statisticsView.classList.contains("hidden")) {
+    renderStatistics();
+}
 
 }
 
