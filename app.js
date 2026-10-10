@@ -26,6 +26,7 @@ const exercises = [
 ];
 
 let workouts = [];
+let isWorkoutsLoading = true;
 
 let gyms = [];
 
@@ -134,6 +135,18 @@ const activeWorkoutView = document.querySelector("#activeWorkoutView");
 
 const exercisesView =
     document.querySelector("#exercisesView");
+
+const weeklyView =
+    document.querySelector("#weeklyView");
+
+const weeklyViewButton =
+    document.querySelector("#weeklyViewButton");
+
+const backToHistoryFromWeeklyButton =
+    document.querySelector("#backToHistoryFromWeeklyButton");
+
+const weeklyWorkoutList =
+    document.querySelector("#weeklyWorkoutList");
 
 const exerciseConfigView =
     document.querySelector("#exerciseConfigView");
@@ -253,7 +266,6 @@ const closeDialogButton = document.querySelector("#closeDialogButton");
 const cancelDialogButton = document.querySelector("#cancelDialogButton");
 
 const backToHistoryButton = document.querySelector("#backToHistoryButton");
-const finishWorkoutButton = document.querySelector("#finishWorkoutButton");
 
 const activeWorkoutName = document.querySelector("#activeWorkoutName");
 const activeWorkoutDate = document.querySelector("#activeWorkoutDate");
@@ -1173,6 +1185,13 @@ function openExerciseHistory(name) {
     renderWorkouts();
     updateReturnToWorkoutButton();
 
+    document.querySelector(".results-heading").scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+        block: "start"
+    });
+
 }
 
 function updateReturnToWorkoutButton() {
@@ -1183,6 +1202,44 @@ function updateReturnToWorkoutButton() {
 
     backToCurrentWorkoutButton.classList.toggle("hidden", !shouldShow);
 
+}
+
+function renderWeeklyWorkoutList() {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+
+    const days = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(today);
+        date.setDate(today.getDate() - (6 - index));
+
+        const dateKey = [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, "0"),
+            String(date.getDate()).padStart(2, "0")
+        ].join("-");
+        const weekday = new Intl.DateTimeFormat("pl-PL", {
+            weekday: "long"
+        }).format(date);
+        const formattedDate = new Intl.DateTimeFormat("pl-PL", {
+            day: "numeric",
+            month: "long"
+        }).format(date);
+        const dayWorkouts = workouts.filter(workout => workout.date === dateKey);
+
+        return `
+            <article class="weekly-day">
+                <div class="weekly-day-heading">
+                    <h2>${escapeHtml(weekday)}</h2>
+                    <p>${escapeHtml(formattedDate)}</p>
+                </div>
+                <ul class="weekly-workout-names">
+                    ${dayWorkouts.map(workout => `<li>${escapeHtml(workout.name)}</li>`).join("")}
+                </ul>
+            </article>
+        `;
+    });
+
+    weeklyWorkoutList.innerHTML = days.join("");
 }
 
 function returnToCurrentWorkout() {
@@ -1230,6 +1287,18 @@ function attachExerciseHistoryLinks() {
 
 function renderWorkouts() {
 
+if (isWorkoutsLoading) {
+
+    resultsCount.textContent = "Ładowanie treningów...";
+    workoutsList.innerHTML = `
+        <div class="workout-loading" role="status" aria-live="polite">
+            <span class="loading-spinner" aria-hidden="true"></span>
+            <span>Pobieranie treningów...</span>
+        </div>
+    `;
+
+    return;
+}
 
 const query =
     searchInput.value.trim().toLowerCase();
@@ -1799,7 +1868,7 @@ function renderExercise(
                 }).join("");
 
                 const typeBadge =
-                    group.type
+                    group.type && !highlightMaxWeight
                         ? `<span class="workout-view-type-pill">${escapeHtml(group.type)}</span>`
                         : "";
 
@@ -3258,29 +3327,28 @@ backToHistoryButton.addEventListener(
 
 );
 
-finishWorkoutButton.addEventListener(
-"click",
-() => {
+/* EXERCISE NAVIGATION */
 
+weeklyViewButton.addEventListener(
+    "click",
+    () => {
+        historyView.classList.add("hidden");
+        exercisesView.classList.add("hidden");
+        exerciseConfigView.classList.add("hidden");
+        gymsView.classList.add("hidden");
+        weeklyView.classList.remove("hidden");
 
-    activeWorkoutView.classList.add(
-        "hidden"
-    );
-
-    historyView.classList.remove(
-        "hidden"
-    );
-
-    activeWorkoutId = null;
-
-    refreshApp();
-
-}
-
-
+        renderWeeklyWorkoutList();
+    }
 );
 
-/* EXERCISE NAVIGATION */
+backToHistoryFromWeeklyButton.addEventListener(
+    "click",
+    () => {
+        weeklyView.classList.add("hidden");
+        historyView.classList.remove("hidden");
+    }
+);
 
 exercisesTabButton.addEventListener(
     "click",
@@ -3413,7 +3481,28 @@ backToCurrentWorkoutButton.addEventListener(
 
 /* LOAD DATA FROM SUPABASE */
 
+let dataLoadPromise = null;
+
 async function loadDataFromSupabase() {
+
+    if (dataLoadPromise) {
+        return dataLoadPromise;
+    }
+
+    isWorkoutsLoading = true;
+    renderWorkouts();
+
+    dataLoadPromise = fetchDataFromSupabase()
+        .finally(() => {
+            isWorkoutsLoading = false;
+            dataLoadPromise = null;
+            refreshApp();
+        });
+
+    return dataLoadPromise;
+}
+
+async function fetchDataFromSupabase() {
 
     const {
         data: {
@@ -3732,12 +3821,6 @@ async function loadDataFromSupabase() {
         );
 
 
-    /*
-     * ODŚWIEŻ UI
-     */
-
-    refreshApp();
-
 }
 
 /* REFRESH */
@@ -3853,6 +3936,37 @@ checkAuth();
 
 const logoutButton =
     document.getElementById("logoutButton");
+
+const headerMenu =
+    document.getElementById("headerMenu");
+
+headerMenu.addEventListener(
+    "click",
+    event => {
+        if (event.target.closest(".header-menu-items button")) {
+            headerMenu.open = false;
+        }
+    }
+);
+
+document.addEventListener(
+    "click",
+    event => {
+        if (!headerMenu.contains(event.target)) {
+            headerMenu.open = false;
+        }
+    }
+);
+
+document.addEventListener(
+    "keydown",
+    event => {
+        if (event.key === "Escape" && headerMenu.open) {
+            headerMenu.open = false;
+            headerMenu.querySelector("summary").focus();
+        }
+    }
+);
 
 logoutButton.addEventListener(
     "click",

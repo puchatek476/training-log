@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#17191f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Training Log">
+    <link rel="apple-touch-icon" href="icon.png">
     <title>Training Log</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -60,6 +63,13 @@
             </button>
 
             <button
+                id="weeklyViewButton"
+                class="button button-secondary"
+            >
+                Ostatnie 7 dni
+            </button>
+
+            <button
                 id="gymsTabButton"
                 class="button button-secondary"
             >
@@ -67,46 +77,45 @@
             </button>
 
 
-            <button
-                type="button"
-                id="importJsonButton"
-                class="button button-secondary"
-            >
-                Importuj
-            </button>
+            <details id="headerMenu" class="header-menu">
+                <summary aria-label="Więcej opcji" title="Więcej opcji">⋯</summary>
+                <div class="header-menu-items">
+                    <button
+                        type="button"
+                        id="importJsonButton"
+                        class="button button-secondary"
+                    >
+                        Importuj
+                    </button>
 
-            <button
-                type="button"
-                id="exportJsonButton"
-                class="button button-secondary"
-            >
-                Eksportuj
-            </button>
+                    <button
+                        type="button"
+                        id="exportJsonButton"
+                        class="button button-secondary"
+                    >
+                        Eksportuj
+                    </button>
 
-            <input
-                type="file"
-                id="importJsonFile"
-                accept=".json,application/json"
-                hidden
-            />
+                    <input
+                        type="file"
+                        id="importJsonFile"
+                        accept=".json,application/json"
+                        hidden
+                    />
 
-            <button
-                id="logoutButton"
-                class="button button-secondary"
-            >
-                Wyloguj
-            </button>
+                    <button
+                        id="logoutButton"
+                        class="button button-secondary"
+                    >
+                        Wyloguj
+                    </button>
+                </div>
+            </details>
 
         </div>
     </header>
 
     <main>
-
-        <section class="intro">
-            <p class="eyebrow">YOUR PROGRESS, TRACKED</p>
-            <h2>Trening po treningu.</h2>
-            <p class="muted">Wszystkie serie. Każdy kilogram.</p>
-        </section>
 
         <section class="workouts-section">
 
@@ -181,6 +190,32 @@
 
         </section>
 
+    </main>
+
+</section>
+
+<!-- OSTATNIE 7 DNI -->
+
+<section id="weeklyView" class="hidden">
+
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">PODSUMOWANIE</p>
+            <h1>Ostatnie 7 dni</h1>
+        </div>
+
+        <button
+            id="backToHistoryFromWeeklyButton"
+            class="button button-secondary"
+        >
+            ← Historia
+        </button>
+    </header>
+
+    <main>
+        <section class="workouts-section">
+            <div id="weeklyWorkoutList" class="weekly-workout-list"></div>
+        </section>
     </main>
 
 </section>
@@ -355,7 +390,7 @@
 
     <header class="active-header">
 
-        <button id="backToHistoryButton" class="button button-secondary">
+        <button id="backToHistoryButton" class="button button-primary">
             ← Historia
         </button>
 
@@ -401,13 +436,6 @@
         type="button"
     >
         Edytuj
-    </button>
-
-    <button
-        id="finishWorkoutButton"
-        class="button button-primary"
-    >
-        Wyjdź
     </button>
 
 </div>

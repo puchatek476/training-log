@@ -34,13 +34,7 @@ margin: 0;
 min-height: 100vh;
 max-width: 100%;
 overflow-x: hidden;
-background:
-radial-gradient(
-circle at top right,
-rgba(247, 120, 101, 0.08),
-transparent 35%
-),
-var(--bg);
+background: var(--bg);
 }
 
 button,
@@ -108,6 +102,62 @@ padding: 30px 0;
 
 .header-actions > * {
     flex-shrink: 0;
+}
+
+.header-menu {
+    position: relative;
+}
+
+.header-menu summary {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    list-style: none;
+}
+
+.header-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.header-menu summary:hover,
+.header-menu[open] summary {
+    border-color: var(--accent);
+}
+
+.header-menu summary:focus-visible,
+.header-menu-items .button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.header-menu-items {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 8px);
+    right: 0;
+    display: grid;
+    min-width: 160px;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.header-menu-items .button {
+    width: 100%;
+    text-align: left;
+    white-space: nowrap;
 }
 
 .topbar h1 {
@@ -302,6 +352,7 @@ flex-wrap: wrap;
 gap: 12px;
 
 margin: 25px 0 12px;
+scroll-margin-top: 24px;
 
 color: var(--muted);
 font-size: 13px;
@@ -347,6 +398,106 @@ width: 100%;
 .workouts-list {
 display: grid;
 gap: 5px;
+padding-bottom: 48px;
+}
+
+.weekly-workout-list {
+display: grid;
+grid-template-columns: repeat(7, minmax(0, 1fr));
+gap: 10px;
+padding-bottom: 48px;
+}
+
+.weekly-day {
+min-height: 150px;
+padding: 14px;
+border: 1px solid var(--border);
+border-radius: var(--radius);
+background: var(--surface);
+}
+
+.weekly-day-heading h2 {
+margin: 0;
+font-size: 16px;
+text-transform: capitalize;
+}
+
+.weekly-day-heading p {
+margin: 4px 0 0;
+color: var(--muted);
+font-size: 12px;
+}
+
+.weekly-workout-names {
+display: grid;
+gap: 8px;
+margin: 16px 0 0;
+padding: 0;
+list-style: none;
+}
+
+.weekly-workout-names li {
+overflow-wrap: anywhere;
+font-size: 14px;
+font-weight: 700;
+}
+
+@media (max-width: 900px) {
+    .weekly-workout-list {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .weekly-workout-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .weekly-day {
+        display: grid;
+        grid-template-columns: minmax(100px, 1fr) 2fr;
+        align-items: start;
+        gap: 12px;
+        min-height: 64px;
+        padding: 12px;
+    }
+
+    .weekly-workout-names {
+        margin: 0;
+    }
+}
+
+.workout-loading {
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 12px;
+min-height: 120px;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: var(--radius);
+color: var(--muted);
+}
+
+.loading-spinner {
+width: 24px;
+height: 24px;
+border: 3px solid var(--border);
+border-top-color: var(--accent);
+border-radius: 50%;
+animation: loading-spin 0.8s linear infinite;
+}
+
+@keyframes loading-spin {
+to {
+    transform: rotate(360deg);
+}
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .loading-spinner {
+        animation: none;
+    }
 }
 
 .workout-card {
@@ -544,6 +695,10 @@ border-radius: var(--radius);
 
 }
 
+#activeExercises {
+padding-bottom: 48px;
+}
+
 .exercise-header {
 display: flex;
 justify-content: space-between;
@@ -710,9 +865,25 @@ background: rgba(247, 120, 101, 0.04);
     line-height: 1.2;
 }
 
-.header-actions #logoutButton {
-    flex-basis: 100%;
+.header-actions > .header-menu {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding: 0;
+}
+
+.header-menu summary {
+    width: 42px;
+    height: 42px;
+}
+
+.header-menu-items .button,
+.header-actions .header-menu #logoutButton {
     width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 13px;
+    text-align: left;
+    flex: initial;
 }
 
 .section-heading {
@@ -1216,7 +1387,7 @@ background: rgba(247, 120, 101, 0.04);
 
 .exercise-history-compact .workout-view-group {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 28px;
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
     gap: 6px;
     width: 100%;
