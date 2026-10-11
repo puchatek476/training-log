@@ -51,9 +51,22 @@ const FIELD_DEFINITIONS = {
     },
 
     seconds: {
-        label: "Czas",
+        label: "Czas (sekundy)",
         placeholder: "sek.",
         type: "number"
+    },
+
+    minutes: {
+        label: "Czas (minuty)",
+        placeholder: "min",
+        type: "number"
+    },
+
+    load: {
+        label: "Obciążenie",
+        placeholder: "Wartość całkowita",
+        type: "number",
+        step: "1"
     },
 
     band: {
@@ -92,6 +105,15 @@ const FIELD_DEFINITIONS = {
     },
 
 };
+
+const NUMERIC_SET_FIELDS = [
+    "weight",
+    "reps",
+    "rpe",
+    "seconds",
+    "minutes",
+    "load"
+];
 
 /* ELEMENTS */
 const gymsView =
@@ -1202,6 +1224,8 @@ function openExerciseHistory(name) {
     returnToWorkoutId = activeWorkoutId;
 
     activeWorkoutId = null;
+    isWorkoutEditing = false;
+    document.body.classList.remove("editing-workout");
     activeWorkoutView.classList.add("hidden");
     historyView.classList.remove("hidden");
 
@@ -1951,18 +1975,48 @@ function renderExercise(
                         primaryBits.push(`${set.reps}`);
                     }
 
+                    const hasWeightOrReps = primaryBits.length > 0;
+                    const fallbackPrimaryBits = [];
+
+                    if (!hasWeightOrReps) {
+                        if (set.seconds !== "" && set.seconds !== null && set.seconds !== undefined) {
+                            fallbackPrimaryBits.push(`${set.seconds} s`);
+                        }
+
+                        if (set.minutes !== "" && set.minutes !== null && set.minutes !== undefined) {
+                            fallbackPrimaryBits.push(`${set.minutes} min`);
+                        }
+
+                        if (
+                            !fallbackPrimaryBits.length &&
+                            set.load !== "" &&
+                            set.load !== null &&
+                            set.load !== undefined
+                        ) {
+                            fallbackPrimaryBits.push(`${set.load}`);
+                        }
+                    }
+
                     const secondaryBits = [];
 
                     if (set.band !== "" && set.band !== null && set.band !== undefined) {
                         secondaryBits.push(`Guma: ${set.band}`);
                     }
 
-                    if (set.seconds !== "" && set.seconds !== null && set.seconds !== undefined) {
+                    if (hasWeightOrReps && set.seconds !== "" && set.seconds !== null && set.seconds !== undefined) {
                         secondaryBits.push(`${set.seconds} sek.`);
                     }
 
+                    if (hasWeightOrReps && set.minutes !== "" && set.minutes !== null && set.minutes !== undefined) {
+                        secondaryBits.push(`${set.minutes} min`);
+                    }
+
+                    if (hasWeightOrReps && set.load !== "" && set.load !== null && set.load !== undefined) {
+                        secondaryBits.push(`Obciążenie: ${set.load}`);
+                    }
+
                     const primaryText =
-                        primaryBits.length
+                        hasWeightOrReps
                             ? (() => {
                                 const repsIndex = primaryBits.lastIndexOf(`${set.reps}`);
                                 const parts = [...primaryBits];
@@ -1973,7 +2027,9 @@ function renderExercise(
 
                                 return parts.join(" × ");
                             })()
-                            : "—";
+                            : fallbackPrimaryBits.length
+                                ? fallbackPrimaryBits.join(" · ")
+                                : "—";
 
                     return `
                         <div class="workout-view-set ${isMaxWeightSet ? "workout-view-set--max-weight" : ""}">
@@ -2977,13 +3033,29 @@ async function saveSetInput(event) {
 
     if (!field) return;
 
+    if (
+        field === "load" &&
+        input.value !== "" &&
+        !Number.isInteger(Number(input.value))
+    ) {
+        alert(
+            "Obciążenie musi być liczbą całkowitą."
+        );
+
+        input.value = set[field] ?? "";
+        return;
+    }
+
 
     /*
      * Aktualizuj lokalny obiekt
      */
 
     const previousValue = set[field];
-    const nextValue = input.value;
+    const nextValue =
+        NUMERIC_SET_FIELDS.includes(field) && input.value !== ""
+            ? Number(input.value)
+            : input.value;
 
     set[field] = nextValue;
 
@@ -4421,7 +4493,7 @@ importJsonFile.addEventListener("change", async () => {
                             value !== "" &&
                             value !== null &&
                             value !== undefined &&
-                            !["weight", "reps", "rpe", "seconds", "band", "setType"].includes(key)
+                            !Object.keys(FIELD_DEFINITIONS).includes(key)
                         ) {
                             errors.push(
                                 `${label}, ${exercise.name}, seria ${si + 1}: nieznane pole "${key}".`
@@ -4430,14 +4502,27 @@ importJsonFile.addEventListener("change", async () => {
                         }
 
                         if (
-                            ["weight", "reps", "rpe", "seconds"].includes(key) &&
+                            NUMERIC_SET_FIELDS.includes(key) &&
                             value !== "" &&
                             value !== null &&
                             value !== undefined &&
-                            (typeof value !== "number" || !Number.isFinite(value))
+                            (!(["number", "string"].includes(typeof value)) || !Number.isFinite(Number(value)))
                         ) {
                             errors.push(
                                 `${label}, ${exercise.name}, seria ${si + 1}: "${key}" musi być liczbą.`
+                            );
+                            invalid = true;
+                        }
+
+                        if (
+                            key === "load" &&
+                            value !== "" &&
+                            value !== null &&
+                            value !== undefined &&
+                            !Number.isInteger(Number(value))
+                        ) {
+                            errors.push(
+                                `${label}, ${exercise.name}, seria ${si + 1}: "load" musi być liczbą całkowitą.`
                             );
                             invalid = true;
                         }
@@ -4585,6 +4670,16 @@ importJsonFile.addEventListener("change", async () => {
                         
                         const rows = exercise.sets.map((set, setIndex) => {
                             const { id, ...rest } = set.data ?? set;
+
+                            for (const field of NUMERIC_SET_FIELDS) {
+                                if (
+                                    rest[field] !== "" &&
+                                    rest[field] !== null &&
+                                    rest[field] !== undefined
+                                ) {
+                                    rest[field] = Number(rest[field]);
+                                }
+                            }
 
                            
                             if (typeof rest.setType === "string") {

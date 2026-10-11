@@ -554,7 +554,7 @@ stroke-width: 2;
 
     .weekly-day {
         display: grid;
-        grid-template-columns: minmax(100px, 1fr) 2fr;
+        grid-template-columns: minmax(130px, 1fr) minmax(0, 1.5fr);
         align-items: start;
         gap: 12px;
         min-height: 64px;
@@ -563,6 +563,7 @@ stroke-width: 2;
 
     .weekly-workout-names {
         margin: 0;
+        padding-left: 6px;
     }
 }
 
@@ -781,7 +782,7 @@ padding: 0 0 80px;
 /* EXERCISE CARD */
 
 .active-exercise {
-margin-bottom: 20px;
+margin-bottom: 10px;
 margin-top: 20px;
 
 
@@ -795,7 +796,7 @@ border-radius: var(--radius);
 }
 
 #activeExercises {
-padding-bottom: 48px;
+padding-bottom: 8px;
 }
 
 .exercise-header {
@@ -906,7 +907,7 @@ color: var(--danger);
 
 .add-exercise-button {
 width: 100%;
-margin-top: 16px;
+margin-top: 8px;
 
 padding: 20px;
 
@@ -966,6 +967,7 @@ background: rgba(247, 120, 101, 0.04);
 
 .header-actions > .header-menu {
     flex: 0 0 auto;
+    margin-left: auto;
     overflow: visible;
     padding: 0;
 }
@@ -995,20 +997,28 @@ background: rgba(247, 120, 101, 0.04);
 }
 
 .active-header {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    gap: 10px 8px;
 }
 
 .active-title {
     order: -1;
+    grid-column: 1 / -1;
 }
 
 .active-header > :last-child {
     justify-self: stretch;
+    grid-column: 2;
 }
 
 .active-header > .button {
     width: 100%;
+}
+
+.active-header-actions,
+.active-header-actions .button {
+    width: 100%;
+    min-width: 0;
 }
 
 
@@ -1075,6 +1085,10 @@ background: rgba(247, 120, 101, 0.04);
 .exercise-fields-list {
     display: grid;
     gap: 12px;
+}
+
+#exerciseConfigView .dialog-actions {
+    margin-top: 24px;
 }
 
 .field-toggle {
@@ -1150,7 +1164,7 @@ background: rgba(247, 120, 101, 0.04);
 }
 
 .workout-notes-section {
-    padding-top: 30px;
+    padding-top: 16px;
     border-top: 1px solid var(--border);
 }
 
