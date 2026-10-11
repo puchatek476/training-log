@@ -301,6 +301,17 @@ document.querySelector("#cancelExerciseButton");
 
 let activeWorkoutId = null;
 let isWorkoutEditing = false;
+const pendingSetSaveQueues = new Map();
+
+window.addEventListener(
+    "beforeunload",
+    event => {
+        if (pendingSetSaveQueues.size === 0) return;
+
+        event.preventDefault();
+        event.returnValue = "";
+    }
+);
 
 editWorkoutButton.addEventListener(
     "click",
@@ -2497,6 +2508,17 @@ document
                         exerciseIndex
                     );
 
+                } catch (error) {
+
+                    console.error(
+                        "Błąd dodawania serii:",
+                        error
+                    );
+
+                    alert(
+                        "Nie udało się zapisać serii. Sprawdź połączenie i spróbuj ponownie."
+                    );
+
                 } finally {
 
                     button.disabled = false;
@@ -2638,6 +2660,12 @@ async function addSet(exerciseIndex) {
     const setOrder =
         exercise.sets.length;
 
+    const existingSetIds = new Set(
+        exercise.sets
+            .map(set => set.id)
+            .filter(Boolean)
+    );
+
 
     /*
      * Zapisz serię w Supabase
@@ -2678,18 +2706,73 @@ async function addSet(exerciseIndex) {
     }
 
 
-    /*
-     * Dodaj serię lokalnie
-     */
+    const {
+        data: savedSets,
+        error: verificationError
+    } =
+        await supabaseClient
+            .from("sets")
+            .select("id, data, set_order")
+            .eq(
+                "workout_exercise_id",
+                exercise.id
+            )
+            .order("set_order");
 
-    exercise.sets.push({
+    if (verificationError) {
 
-        id:
-            data.id,
+        console.error(
+            "Nie udało się zweryfikować serii po zapisie:",
+            verificationError
+        );
 
-        ...setData
+        exercise.sets.push({
+            id: data.id,
+            ...setData
+        });
 
-    });
+        alert(
+            "Seria została wysłana, ale nie udało się potwierdzić jej zapisu w bazie. Sprawdź trening po ponownym wczytaniu."
+        );
+
+    } else {
+
+        const savedSetIds = new Set(
+            savedSets.map(set => set.id)
+        );
+
+        const missingExistingSets =
+            [...existingSetIds].some(
+                setId => !savedSetIds.has(setId)
+            );
+
+        const newSetWasSaved =
+            savedSetIds.has(data.id);
+
+        exercise.sets = savedSets.map(set => ({
+            id: set.id,
+            ...set.data
+        }));
+
+        if (missingExistingSets || !newSetWasSaved) {
+
+            console.error(
+                "Niezgodność serii po zapisie:",
+                {
+                    missingExistingSets,
+                    newSetWasSaved,
+                    insertedSetId: data.id,
+                    savedSets
+                }
+            );
+
+            alert(
+                missingExistingSets
+                    ? "Baza danych nie zachowała wcześniejszej serii podczas dodawania. Widok został zsynchronizowany z bazą. Sprawdź ograniczenia lub triggery tabeli sets."
+                    : "Baza danych nie zachowała dodanej serii. Widok został zsynchronizowany z bazą. Sprawdź ograniczenia lub triggery tabeli sets."
+            );
+        }
+    }
 
 
     /*
@@ -2899,8 +2982,10 @@ async function saveSetInput(event) {
      * Aktualizuj lokalny obiekt
      */
 
-    set[field] =
-        input.value;
+    const previousValue = set[field];
+    const nextValue = input.value;
+
+    set[field] = nextValue;
 
 
     /*
@@ -2913,51 +2998,90 @@ async function saveSetInput(event) {
             "Brak ID serii w Supabase."
         );
 
+        set[field] = previousValue;
+        input.value = previousValue ?? "";
+
+        alert(
+            "Nie można zapisać tej serii. Odśwież trening i spróbuj ponownie."
+        );
+
         return;
     }
 
 
-    /*
-     * Pobierz aktualne dane serii
-     */
+    const setId = set.id;
+    const previousSave =
+        pendingSetSaveQueues.get(setId) ||
+        Promise.resolve();
 
-    const setData = {
-        ...set
-    };
+    const savePromise = previousSave
+        .catch(() => {})
+        .then(async () => {
 
+            const setData = {
+                ...set
+            };
 
-    /*
-     * Nie zapisujemy ID jako części JSON.
-     */
+            delete setData.id;
 
-    delete setData.id;
+            const {
+                data,
+                error
+            } =
+                await supabaseClient
+                    .from("sets")
+                    .update({
+                        data: setData
+                    })
+                    .eq(
+                        "id",
+                        setId
+                    )
+                    .select("id")
+                    .maybeSingle();
 
+            if (error) throw error;
 
-    /*
-     * Zapisz serię w Supabase
-     */
+            if (!data) {
+                throw new Error(
+                    "Seria nie została znaleziona lub zapis został zablokowany."
+                );
+            }
+        });
 
-    const {
-        error
-    } =
-        await supabaseClient
-            .from("sets")
-            .update({
-                data: setData
-            })
-            .eq(
-                "id",
-                set.id
-            );
+    pendingSetSaveQueues.set(
+        setId,
+        savePromise
+    );
 
+    try {
 
-    if (error) {
+        await savePromise;
+
+    } catch (error) {
 
         console.error(
             "Błąd zapisu serii:",
             error
         );
 
+        if (set[field] === nextValue) {
+            set[field] = previousValue;
+            input.value = previousValue ?? "";
+        }
+
+        alert(
+            "Nie udało się zapisać serii. Niepotwierdzona zmiana została cofnięta. Sprawdź połączenie i spróbuj ponownie."
+        );
+
+    } finally {
+
+        if (
+            pendingSetSaveQueues.get(setId) ===
+            savePromise
+        ) {
+            pendingSetSaveQueues.delete(setId);
+        }
     }
 
 }
@@ -3850,35 +3974,54 @@ async function fetchDataFromSupabase() {
         workoutExerciseIds.length > 0
     ) {
 
-        const {
-            data,
-            error
-        } =
-            await supabaseClient
-                .from("sets")
-                .select("*")
-                .in(
-                    "workout_exercise_id",
-                    workoutExerciseIds
-                )
-                .order(
-                    "set_order"
+        const pageSize = 500;
+
+        for (
+            let from = 0;
+            ;
+            from += pageSize
+        ) {
+
+            const {
+                data,
+                error
+            } =
+                await supabaseClient
+                    .from("sets")
+                    .select("*")
+                    .in(
+                        "workout_exercise_id",
+                        workoutExerciseIds
+                    )
+                    .order(
+                        "set_order",
+                        { ascending: true }
+                    )
+                    .order(
+                        "id",
+                        { ascending: true }
+                    )
+                    .range(
+                        from,
+                        from + pageSize - 1
+                    );
+
+            if (error) {
+
+                console.error(
+                    "Błąd pobierania serii:",
+                    error
                 );
 
+                return;
+            }
 
-        if (error) {
+            setData.push(...data);
 
-            console.error(
-                "Błąd pobierania serii:",
-                error
-            );
-
-            return;
+            if (data.length < pageSize) {
+                break;
+            }
         }
-
-
-        setData =
-            data;
 
     }
 
