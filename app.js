@@ -306,6 +306,8 @@ const backToHistoryButton = document.querySelector("#backToHistoryButton");
 
 const activeWorkoutName = document.querySelector("#activeWorkoutName");
 const activeWorkoutDate = document.querySelector("#activeWorkoutDate");
+const activeWorkoutEyebrow = document.querySelector("#activeWorkoutEyebrow");
+const activeWorkoutGymSelect = document.querySelector("#activeWorkoutGymSelect");
 const activeExercises = document.querySelector("#activeExercises");
 
 const addExerciseButton = document.querySelector("#addExerciseButton");
@@ -323,6 +325,7 @@ document.querySelector("#cancelExerciseButton");
 
 let activeWorkoutId = null;
 let isWorkoutEditing = false;
+let isActiveWorkoutGymEditing = false;
 const pendingSetSaveQueues = new Map();
 
 window.addEventListener(
@@ -335,6 +338,120 @@ window.addEventListener(
     }
 );
 
+function renderActiveWorkoutGymControl(workout) {
+
+    activeWorkoutEyebrow.textContent =
+        workout.gym || "TRENING";
+
+    activeWorkoutGymSelect.innerHTML = [
+        '<option value="">Bez siłowni</option>',
+        ...gyms.map(
+            gym =>
+                `<option value="${gym.id}">${escapeHtml(gym.name)}</option>`
+        )
+    ].join("");
+
+    activeWorkoutGymSelect.value =
+        workout.gymId === null || workout.gymId === undefined
+            ? ""
+            : String(workout.gymId);
+
+    activeWorkoutGymSelect.classList.toggle(
+        "hidden",
+        !isActiveWorkoutGymEditing
+    );
+}
+
+activeWorkoutGymSelect.addEventListener(
+    "change",
+    async () => {
+
+        const workout =
+            workouts.find(
+                item => item.id === activeWorkoutId
+            );
+
+        if (!workout) return;
+
+        const previousGymId = workout.gymId;
+        const gymId = activeWorkoutGymSelect.value
+            ? Number(activeWorkoutGymSelect.value)
+            : null;
+
+        activeWorkoutGymSelect.disabled = true;
+
+        try {
+
+            const {
+                data,
+                error
+            } =
+                await supabaseClient
+                    .from("workouts")
+                    .update({ gym_id: gymId })
+                    .eq("id", workout.id)
+                    .select("gym_id")
+                    .single();
+
+            if (error) throw error;
+
+            const selectedGym =
+                gyms.find(
+                    gym => gym.id === data.gym_id
+                );
+
+            workout.gymId = data.gym_id;
+            workout.gym = selectedGym?.name || "";
+            isActiveWorkoutGymEditing = false;
+
+            renderActiveWorkoutGymControl(workout);
+            refreshApp();
+
+        } catch (error) {
+
+            console.error(
+                "Błąd zapisu siłowni treningu:",
+                error
+            );
+
+            workout.gymId = previousGymId;
+            isActiveWorkoutGymEditing = false;
+            renderActiveWorkoutGymControl(workout);
+
+            alert(
+                "Nie udało się zapisać siłowni treningu."
+            );
+
+        } finally {
+
+            activeWorkoutGymSelect.disabled = false;
+        }
+    }
+);
+
+activeWorkoutGymSelect.addEventListener(
+    "blur",
+    () => {
+
+        const workout =
+            workouts.find(
+                item => item.id === activeWorkoutId
+            );
+
+        if (!workout || !isActiveWorkoutGymEditing) return;
+
+        const currentGymId =
+            workout.gymId === null || workout.gymId === undefined
+                ? ""
+                : String(workout.gymId);
+
+        if (activeWorkoutGymSelect.value === currentGymId) {
+            isActiveWorkoutGymEditing = false;
+            renderActiveWorkoutGymControl(workout);
+        }
+    }
+);
+
 editWorkoutButton.addEventListener(
     "click",
     () => {
@@ -343,6 +460,10 @@ editWorkoutButton.addEventListener(
 
         isWorkoutEditing =
             !isWorkoutEditing;
+
+        if (!isWorkoutEditing) {
+            isActiveWorkoutGymEditing = false;
+        }
 
         if (isWorkoutEditing) {
 
@@ -504,19 +625,7 @@ editWorkoutForm.addEventListener(
                 workout.date
             );
 
-        const activeWorkoutEyebrow =
-            document.getElementById(
-                "activeWorkoutEyebrow"
-            );
-
-        if (activeWorkoutEyebrow) {
-
-            activeWorkoutEyebrow.textContent =
-                workout.gym
-                    ? `TRENING - ${workout.gym.toUpperCase()}`
-                    : "TRENING";
-
-        }
+        renderActiveWorkoutGymControl(workout);
 
         refreshApp();
 
@@ -1569,7 +1678,8 @@ workoutsList.innerHTML =
                     <div>
 
                         <h3>
-                            ${workout.name}
+                            <span class="workout-card-title">${escapeHtml(workout.name)}</span>
+                            ${workout.gym ? `<span class="workout-card-gym">${escapeHtml(workout.gym)}</span>` : ""}
                         </h3>
 
                         <div class="workout-date">
@@ -1631,6 +1741,7 @@ function openWorkout(id, startEditing = false) {
     activeWorkoutId = id;
 
     isWorkoutEditing = Boolean(startEditing);
+    isActiveWorkoutGymEditing = false;
 
     if (isWorkoutEditing) {
         editWorkoutButton.textContent =
@@ -1661,18 +1772,10 @@ function openWorkout(id, startEditing = false) {
         formatDate(workout.date);
 
 
-    const activeWorkoutEyebrow =
-        document.getElementById(
-            "activeWorkoutEyebrow"
-        );
-
-
     if (activeWorkoutEyebrow) {
 
         activeWorkoutEyebrow.textContent =
-            workout.gym
-                ? `TRENING - ${workout.gym.toUpperCase()}`
-                : "TRENING";
+            workout.gym || "TRENING";
 
     }
 
@@ -1811,6 +1914,8 @@ function renderActiveWorkout() {
         );
 
     if (!workout) return;
+
+    renderActiveWorkoutGymControl(workout);
 
     const nameField =
         document.querySelector(
@@ -2189,6 +2294,17 @@ function renderExercise(
 
         }).join("");
 
+    const mobileSetColumns = [
+        "28px",
+        ...fields.map(
+            field =>
+                FIELD_DEFINITIONS[field].type === "select"
+                    ? "120px"
+                    : "56px"
+        ),
+        "28px"
+    ].join(" ");
+
 
     return `
         <section class="active-exercise">
@@ -2211,6 +2327,11 @@ function renderExercise(
 
             </div>
 
+            <div
+                class="set-fields-scroll"
+                style="--set-mobile-columns: ${mobileSetColumns}"
+            >
+
             <div class="set-row set-header">
 
                 <div>SERIA</div>
@@ -2222,6 +2343,8 @@ function renderExercise(
             </div>
 
             ${rows}
+
+            </div>
 
             <div class="exercise-notes">
 
@@ -2258,6 +2381,21 @@ function startInlineWorkoutEdit(
     field,
     value
 ) {
+
+    if (field === "gym") {
+
+        const workout =
+            workouts.find(
+                item => item.id === activeWorkoutId
+            );
+
+        if (!workout) return;
+
+        isActiveWorkoutGymEditing = true;
+        renderActiveWorkoutGymControl(workout);
+        activeWorkoutGymSelect.focus();
+        return;
+    }
 
     if (
         container.querySelector(
@@ -2456,7 +2594,9 @@ document.addEventListener(
             type,
             type === "name"
                 ? workout.name
-                : workout.date
+                : type === "date"
+                    ? workout.date
+                    : workout.gymId
         );
     }
 );

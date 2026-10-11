@@ -439,21 +439,39 @@
 
         <div class="active-title">
 
-            <p id="activeWorkoutEyebrow" class="eyebrow">
-                TRENING
-            </p>
+            <div class="active-workout-heading-row">
 
-            <div class="editable-workout-field" data-field="name">
-                <h1 id="activeWorkoutName">
-                    Trening
-                </h1>
-                <button
-                    type="button"
-                    class="inline-edit-button"
-                    aria-label="Edytuj nazwę"
-                >
-                    ✎
-                </button>
+                <div class="editable-workout-field" data-field="name">
+                    <h1 id="activeWorkoutName">
+                        Trening
+                    </h1>
+                    <button
+                        type="button"
+                        class="inline-edit-button"
+                        aria-label="Edytuj nazwę"
+                    >
+                        ✎
+                    </button>
+                </div>
+
+                <div class="editable-workout-field active-workout-gym-field" data-field="gym">
+                    <p id="activeWorkoutEyebrow" class="eyebrow">
+                        TRENING
+                    </p>
+                    <button
+                        type="button"
+                        class="inline-edit-button"
+                        aria-label="Edytuj siłownię"
+                    >
+                        ✎
+                    </button>
+                    <select
+                        id="activeWorkoutGymSelect"
+                        class="active-workout-gym-select hidden"
+                        aria-label="Siłownia treningu"
+                    ></select>
+                </div>
+
             </div>
 
             <div class="editable-workout-field" data-field="date">
