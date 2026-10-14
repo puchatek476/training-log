@@ -1496,15 +1496,17 @@ background: rgba(247, 120, 101, 0.04);
 @media (max-width: 700px) {
     #historyView > .topbar {
         display: grid;
-        grid-template-columns: 44px minmax(0, 1fr);
-        grid-template-rows: 44px auto auto auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: 44px auto auto;
         align-items: center;
-        gap: 8px;
+        column-gap: 8px;
+        row-gap: 16px;
     }
 
     #historyView > .topbar > div:first-child {
-        grid-column: 2;
+        grid-column: 1;
         grid-row: 1;
+        padding-left: 8px;
     }
 
     #historyView > .topbar > .header-actions {
@@ -1512,36 +1514,48 @@ background: rgba(247, 120, 101, 0.04);
     }
 
     #headerMenu {
-        grid-column: 1;
+        grid-column: 2;
         grid-row: 1;
-        justify-self: start;
+        justify-self: end;
         margin: 0;
     }
 
     #statisticsViewButton {
-        grid-column: 1 / -1;
+        grid-column: 1;
         grid-row: 2;
-        width: 100%;
+        justify-self: stretch;
     }
 
     #exercisesTabButton {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    #weeklyViewButton {
         grid-column: 1;
         grid-row: 3;
     }
 
-    #weeklyViewButton {
+    #gymsTabButton {
         grid-column: 2;
         grid-row: 3;
     }
 
-    #gymsTabButton {
-        grid-column: 1 / -1;
-        grid-row: 4;
+    #historyView .header-actions > .button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 46px;
+        padding: 8px 10px;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.2;
     }
 
     #historyView .header-menu-items {
-        right: auto;
-        left: 0;
+        right: 0;
+        left: auto;
     }
 }
 

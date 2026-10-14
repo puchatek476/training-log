@@ -1407,6 +1407,16 @@ function updateReturnToWorkoutButton() {
 }
 
 function renderWeeklyWorkoutList() {
+    if (isWorkoutsLoading) {
+        weeklyWorkoutList.innerHTML = `
+            <div class="workout-loading" role="status" aria-live="polite">
+                <span class="loading-spinner" aria-hidden="true"></span>
+                <span>Pobieranie danych...</span>
+            </div>
+        `;
+        return;
+    }
+
     const today = new Date();
     today.setHours(12, 0, 0, 0);
 
@@ -2958,6 +2968,22 @@ async function addSet(exerciseIndex) {
 
         }
     );
+
+    const previousSet =
+        exercise.sets[exercise.sets.length - 1];
+    const normalizedExerciseName =
+        exercise.name.trim().toLocaleLowerCase();
+
+    if (
+        previousSet &&
+        SBD_EXERCISE_NAMES.has(normalizedExerciseName)
+    ) {
+        setData.setType = previousSet.setType || "";
+
+        if (normalizedExerciseName === "deadlift") {
+            setData.deadliftStyle = previousSet.deadliftStyle || "";
+        }
+    }
 
 
     /*
@@ -4512,6 +4538,10 @@ populateExerciseSelect();
 populateGymSelect();
 
 renderWorkouts();
+
+if (!weeklyView.classList.contains("hidden")) {
+    renderWeeklyWorkoutList();
+}
 
 if (!statisticsView.classList.contains("hidden")) {
     renderStatistics();
