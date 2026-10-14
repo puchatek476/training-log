@@ -870,6 +870,44 @@ margin: 0;
 font-size: 21px;
 }
 
+.exercise-title {
+display: flex;
+align-items: center;
+gap: 10px;
+min-width: 0;
+}
+
+.exercise-order-controls {
+display: flex;
+gap: 5px;
+}
+
+.move-exercise {
+display: grid;
+place-items: center;
+width: 36px;
+height: 36px;
+padding: 0;
+border: 1px solid var(--accent);
+border-radius: 8px;
+background: var(--surface-3);
+color: var(--accent);
+font-size: 20px;
+font-weight: 700;
+line-height: 1;
+cursor: pointer;
+}
+
+.move-exercise:hover:not(:disabled) {
+background: var(--accent);
+color: var(--bg);
+}
+
+.move-exercise:disabled {
+opacity: 0.5;
+cursor: default;
+}
+
 .remove-exercise {
 border: 0;
 background: none;
@@ -1259,6 +1297,12 @@ background: rgba(247, 120, 101, 0.04);
     border-top: 1px solid var(--border);
 }
 
+.workout-notes-preview {
+    min-height: 1.5em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .exercise-notes {
     margin-top: 18px;
     margin-bottom: 18px;
@@ -1447,6 +1491,58 @@ background: rgba(247, 120, 101, 0.04);
 #editWorkoutForm input:focus,
 #editWorkoutForm select:focus {
     border-color: var(--accent);
+}
+
+@media (max-width: 700px) {
+    #historyView > .topbar {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr);
+        grid-template-rows: 44px auto auto auto;
+        align-items: center;
+        gap: 8px;
+    }
+
+    #historyView > .topbar > div:first-child {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    #historyView > .topbar > .header-actions {
+        display: contents;
+    }
+
+    #headerMenu {
+        grid-column: 1;
+        grid-row: 1;
+        justify-self: start;
+        margin: 0;
+    }
+
+    #statisticsViewButton {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        width: 100%;
+    }
+
+    #exercisesTabButton {
+        grid-column: 1;
+        grid-row: 3;
+    }
+
+    #weeklyViewButton {
+        grid-column: 2;
+        grid-row: 3;
+    }
+
+    #gymsTabButton {
+        grid-column: 1 / -1;
+        grid-row: 4;
+    }
+
+    #historyView .header-menu-items {
+        right: auto;
+        left: 0;
+    }
 }
 
 #editWorkoutForm input::placeholder {

@@ -255,7 +255,7 @@
             </div>
             <section class="statistics-chart-card" aria-labelledby="statisticsChartTitle">
                 <h2 id="statisticsChartTitle">Maksymalny ciężar na treningu</h2>
-                <p class="muted">Największy zapisany ciężar dla ćwiczenia w każdym treningu.</p>
+                <p class="muted">Największy ciężar dla ćwiczenia w treningach głównych danego boju.</p>
                 <div id="exerciseWeightChart"></div>
             </section>
         </section>
@@ -520,8 +520,14 @@
 
             Notatki treningu
 
+            <div
+                id="activeWorkoutNotesPreview"
+                class="workout-notes-preview hidden"
+            ></div>
+
             <textarea
                 id="activeWorkoutNotes"
+                class="hidden"
                 placeholder="Notatki dotyczące całego treningu..."
                 rows="5"
             ></textarea>

@@ -34,38 +34,44 @@ const FIELD_DEFINITIONS = {
     weight: {
         label: "Ciężar",
         placeholder: "kg",
-        type: "number"
+        type: "number",
+        inputmode: "decimal"
     },
 
     reps: {
         label: "Powtórzenia",
         placeholder: "Powt.",
-        type: "number"
+        type: "number",
+        inputmode: "numeric"
     },
 
     rpe: {
         label: "RPE",
         placeholder: "RPE",
         type: "number",
+        inputmode: "decimal",
         step: "0.25"
     },
 
     seconds: {
         label: "Czas (sekundy)",
         placeholder: "sek.",
-        type: "number"
+        type: "number",
+        inputmode: "numeric"
     },
 
     minutes: {
         label: "Czas (minuty)",
         placeholder: "min",
-        type: "number"
+        type: "number",
+        inputmode: "numeric"
     },
 
     load: {
         label: "Obciążenie",
         placeholder: "Wartość całkowita",
         type: "number",
+        inputmode: "numeric",
         step: "1"
     },
 
@@ -114,6 +120,40 @@ const NUMERIC_SET_FIELDS = [
     "minutes",
     "load"
 ];
+
+const SBD_EXERCISE_NAMES = new Set([
+    "squat",
+    "bench press",
+    "deadlift"
+]);
+
+function isSbdExercise(name) {
+    return SBD_EXERCISE_NAMES.has(
+        String(name).trim().toLocaleLowerCase()
+    );
+}
+
+function isMainSbdExerciseInWorkout(workoutName, exerciseName) {
+    const normalizedWorkoutName =
+        String(workoutName).toLocaleLowerCase();
+    const normalizedExerciseName =
+        String(exerciseName).trim().toLocaleLowerCase();
+    const workoutParts =
+        normalizedWorkoutName.split(/\s*\+\s*/);
+    const hasLiftSpecificParts =
+        workoutParts.some(part =>
+            [...SBD_EXERCISE_NAMES].some(name => part.includes(name))
+        );
+
+    if (!hasLiftSpecificParts) {
+        return /(^|[^a-z0-9])main([^a-z0-9]|$)/.test(normalizedWorkoutName);
+    }
+
+    return workoutParts.some(part =>
+        part.includes(normalizedExerciseName) &&
+        /(^|[^a-z0-9])main([^a-z0-9]|$)/.test(part)
+    );
+}
 
 /* ELEMENTS */
 const gymsView =
@@ -298,6 +338,8 @@ const saveWorkoutButton =
 const workoutName = document.querySelector("#workoutName");
 const workoutDate = document.querySelector("#workoutDate");
 const activeWorkoutNotes = document.querySelector("#activeWorkoutNotes");
+const activeWorkoutNotesPreview =
+    document.querySelector("#activeWorkoutNotesPreview");
 
 const closeDialogButton = document.querySelector("#closeDialogButton");
 const cancelDialogButton = document.querySelector("#cancelDialogButton");
@@ -325,6 +367,7 @@ document.querySelector("#cancelExerciseButton");
 
 let activeWorkoutId = null;
 let isWorkoutEditing = false;
+let isExerciseOrderSaving = false;
 let isActiveWorkoutGymEditing = false;
 const pendingSetSaveQueues = new Map();
 
@@ -1406,7 +1449,11 @@ function renderWeeklyWorkoutList() {
 }
 
 function renderStatistics() {
-    const exerciseNames = [...new Set(exercises.map(exercise => exercise.name))]
+    const exerciseNames = [...new Set(
+        exercises
+            .map(exercise => exercise.name)
+            .filter(isSbdExercise)
+    )]
         .sort((a, b) => a.localeCompare(b, "pl"));
     const selectedExercise = statisticsExerciseSelect.value;
 
@@ -1429,9 +1476,21 @@ function renderStatistics() {
 }
 
 function renderExerciseWeightChart(exerciseName) {
+    const normalizedExerciseName = String(exerciseName).trim().toLocaleLowerCase();
+
+    if (!isSbdExercise(exerciseName)) {
+        exerciseWeightChart.innerHTML = `
+            <p class="muted">Wybierz ćwiczenie SBD, aby wyświetlić wykres.</p>
+        `;
+        return;
+    }
+
     const dataPoints = workouts.flatMap(workout => {
         const sets = workout.exercises
-            .filter(exercise => exercise.name === exerciseName)
+            .filter(exercise =>
+                exercise.name.trim().toLocaleLowerCase() === normalizedExerciseName &&
+                isMainSbdExerciseInWorkout(workout.name, exerciseName)
+            )
             .flatMap(exercise => exercise.sets || []);
         const weights = sets
             .filter(set => set.weight !== "" && set.weight !== null && set.weight !== undefined)
@@ -1961,8 +2020,22 @@ function renderActiveWorkout() {
             `;
         }
 
-    activeWorkoutNotes.value =
-        workout.notes || "";
+    const workoutNotes = workout.notes || "";
+    activeWorkoutNotes.value = workoutNotes;
+    activeWorkoutNotesPreview.textContent =
+        workoutNotes || "Brak notatek.";
+    activeWorkoutNotesPreview.classList.toggle(
+        "muted",
+        !workoutNotes
+    );
+    activeWorkoutNotesPreview.classList.toggle(
+        "hidden",
+        isWorkoutEditing
+    );
+    activeWorkoutNotes.classList.toggle(
+        "hidden",
+        !isWorkoutEditing
+    );
 
 if (!workout.exercises.length) {
 
@@ -2177,7 +2250,7 @@ function renderExercise(
 
 
         
-            const notes = exercise.notes?.trim()
+            const notes = !highlightMaxWeight && exercise.notes?.trim()
                 ? `
                     <div class="workout-view-notes">
                         <strong>Notatka:</strong>
@@ -2260,6 +2333,7 @@ function renderExercise(
                                     class="set-field set-${field}"
                                     data-field="${field}"
                                     type="${definition.type}"
+                                    inputmode="${definition.inputmode}"
                                     ${definition.step ? `step="${definition.step}"` : ""}
                                     placeholder="${definition.placeholder}"
                                     value="${set[field] ?? ""}"
@@ -2312,6 +2386,27 @@ function renderExercise(
             <div class="exercise-header">
 
                 <div class="exercise-title">
+
+                    <div class="exercise-order-controls">
+                        <button
+                            type="button"
+                            class="move-exercise"
+                            data-exercise-index="${exerciseIndex}"
+                            data-direction="-1"
+                            aria-label="Przesuń ${escapeHtml(exercise.name)} wyżej"
+                            title="Przesuń wyżej"
+                            ${exerciseIndex === 0 || isExerciseOrderSaving ? "disabled" : ""}
+                        >↑</button>
+                        <button
+                            type="button"
+                            class="move-exercise"
+                            data-exercise-index="${exerciseIndex}"
+                            data-direction="1"
+                            aria-label="Przesuń ${escapeHtml(exercise.name)} niżej"
+                            title="Przesuń niżej"
+                            ${exerciseIndex === workouts.find(workout => workout.id === activeWorkoutId).exercises.length - 1 || isExerciseOrderSaving ? "disabled" : ""}
+                        >↓</button>
+                    </div>
 
                     <h2>${exercise.name}</h2>
 
@@ -2783,6 +2878,23 @@ document
 
 
 document
+    .querySelectorAll(".move-exercise")
+    .forEach(button => {
+
+        button.addEventListener(
+            "click",
+            () => {
+                moveExercise(
+                    Number(button.dataset.exerciseIndex),
+                    Number(button.dataset.direction)
+                );
+            }
+        );
+
+    });
+
+
+document
     .querySelectorAll(".set-row:not(.set-header) .set-field")
     .forEach(input => {
 
@@ -3067,6 +3179,8 @@ let workoutNotesSaveTimer = null;
 activeWorkoutNotes.addEventListener(
     "input",
     () => {
+
+        if (!isWorkoutEditing) return;
 
         const workout =
             workouts.find(
@@ -3384,6 +3498,60 @@ async function removeExercise(
 
     renderActiveWorkout();
 
+}
+
+async function moveExercise(exerciseIndex, direction) {
+
+    if (isExerciseOrderSaving) return;
+
+    const workout =
+        workouts.find(
+            workout => workout.id === activeWorkoutId
+        );
+
+    if (!workout) return;
+
+    const targetIndex = exerciseIndex + direction;
+
+    if (targetIndex < 0 || targetIndex >= workout.exercises.length) return;
+
+    const previousExercises = [...workout.exercises];
+    [workout.exercises[exerciseIndex], workout.exercises[targetIndex]] =
+        [workout.exercises[targetIndex], workout.exercises[exerciseIndex]];
+
+    isExerciseOrderSaving = true;
+    renderActiveWorkout();
+
+    try {
+        const updates = await Promise.all(
+            workout.exercises.map((exercise, order) =>
+                supabaseClient
+                    .from("workout_exercises")
+                    .update({ exercise_order: order })
+                    .eq("id", exercise.id)
+            )
+        );
+
+        const failedUpdate = updates.find(result => result.error);
+        if (failedUpdate) throw failedUpdate.error;
+    } catch (error) {
+        console.error("Błąd zmiany kolejności ćwiczeń:", error);
+        workout.exercises = previousExercises;
+
+        await Promise.all(
+            previousExercises.map((exercise, order) =>
+                supabaseClient
+                    .from("workout_exercises")
+                    .update({ exercise_order: order })
+                    .eq("id", exercise.id)
+            )
+        );
+
+        alert("Nie udało się zapisać kolejności ćwiczeń.");
+    } finally {
+        isExerciseOrderSaving = false;
+        renderActiveWorkout();
+    }
 }
 
 /* NEW WORKOUT */
