@@ -2369,22 +2369,33 @@ function renderExercise(
 
     const headerFields =
         fields.map(field => {
+            const label = FIELD_DEFINITIONS[field].label;
 
             return `
-                <div>
-                    ${FIELD_DEFINITIONS[field].label}
+                <div class="set-header-${field}">
+                    <span class="set-header-label">${label}</span>
+                    ${field === "reps"
+                        ? '<span class="set-header-label-mobile">Powt.</span>'
+                        : ""}
                 </div>
             `;
 
         }).join("");
 
     const mobileSetColumns = [
-        "28px",
+        "32px",
         ...fields.map(
-            field =>
-                FIELD_DEFINITIONS[field].type === "select"
-                    ? "120px"
-                    : "56px"
+            field => {
+                const definition = FIELD_DEFINITIONS[field];
+
+                if (definition.type === "select") {
+                    if (field === "setType") return "72px";
+                    if (field === "deadliftStyle") return "100px";
+                    return "96px";
+                }
+
+                return "56px";
+            }
         ),
         "28px"
     ].join(" ");

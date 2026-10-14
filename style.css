@@ -949,6 +949,10 @@ color: var(--danger);
     text-transform: uppercase;
 }
 
+.set-header-label-mobile {
+    display: none;
+}
+
 .set-number {
     color: var(--muted);
     font-size: 13px;
@@ -1024,7 +1028,19 @@ color: var(--danger);
     .set-header > div {
         min-width: 0;
         text-align: center;
-        overflow-wrap: anywhere;
+        overflow-wrap: normal;
+    }
+
+    .set-header > div:first-child {
+        white-space: nowrap;
+    }
+
+    .set-header-label-mobile {
+        display: inline;
+    }
+
+    .set-header-reps .set-header-label {
+        display: none;
     }
 
     .set-row:not(.set-header) .set-number {
@@ -1504,9 +1520,9 @@ background: rgba(247, 120, 101, 0.04);
     }
 
     #historyView > .topbar > div:first-child {
-        grid-column: 1;
+        grid-column: 1 / -1;
         grid-row: 1;
-        padding-left: 8px;
+        padding-right: 52px;
     }
 
     #historyView > .topbar > .header-actions {
