@@ -42,7 +42,8 @@ const FIELD_DEFINITIONS = {
         label: "Powtórzenia",
         placeholder: "Powt.",
         type: "number",
-        inputmode: "numeric"
+        inputmode: "decimal",
+        step: "any"
     },
 
     rpe: {
@@ -209,6 +210,21 @@ const backToHistoryFromWeeklyButton =
 
 const weeklyWorkoutList =
     document.querySelector("#weeklyWorkoutList");
+
+const rareExercisesView =
+    document.querySelector("#rareExercisesView");
+
+const rareExercisesViewButton =
+    document.querySelector("#rareExercisesViewButton");
+
+const backToHistoryFromRareExercisesButton =
+    document.querySelector("#backToHistoryFromRareExercisesButton");
+
+const rareExercisesWorkoutCount =
+    document.querySelector("#rareExercisesWorkoutCount");
+
+const rareExercisesList =
+    document.querySelector("#rareExercisesList");
 
 const statisticsView =
     document.querySelector("#statisticsView");
@@ -501,6 +517,28 @@ editWorkoutButton.addEventListener(
 
         if (!activeWorkoutId) return;
 
+        let visibleExerciseIndex = -1;
+        let visibleExerciseTop = null;
+        let lastVisibleExercise = null;
+
+        [...activeExercises.children].forEach((exercise, index) => {
+            const rect = exercise.getBoundingClientRect();
+
+            if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                lastVisibleExercise = { index, top: rect.top };
+
+                if (rect.top >= 0 && rect.bottom <= window.innerHeight) {
+                    visibleExerciseIndex = index;
+                    visibleExerciseTop = rect.top;
+                }
+            }
+        });
+
+        if (visibleExerciseTop === null && lastVisibleExercise) {
+            visibleExerciseIndex = lastVisibleExercise.index;
+            visibleExerciseTop = lastVisibleExercise.top;
+        }
+
         isWorkoutEditing =
             !isWorkoutEditing;
 
@@ -536,6 +574,17 @@ editWorkoutButton.addEventListener(
         }
 
         renderActiveWorkout();
+
+        if (visibleExerciseTop !== null) {
+            requestAnimationFrame(() => {
+                const exercise = activeExercises.children[visibleExerciseIndex];
+                if (!exercise) return;
+
+                const topDifference =
+                    exercise.getBoundingClientRect().top - visibleExerciseTop;
+                window.scrollBy(0, topDifference);
+            });
+        }
     }
 );
 
@@ -978,13 +1027,19 @@ return weight;
 
 /* EXERCISE FILTER */
 
+function getExercisesAlphabetically() {
+    return [...exercises].sort((a, b) =>
+        a.name.localeCompare(b.name, "pl")
+    );
+}
+
 function populateExerciseFilter() {
 
 
 exerciseFilter.innerHTML =
     `<option value="">Wszystkie ćwiczenia</option>`;
 
-exercises.forEach(exercise => {
+getExercisesAlphabetically().forEach(exercise => {
 
     const option = document.createElement("option");
 
@@ -1004,7 +1059,7 @@ function populateExerciseSelect() {
 
     exerciseSelect.innerHTML = "";
 
-    exercises.forEach(exercise => {
+    getExercisesAlphabetically().forEach(exercise => {
 
         const option = document.createElement("option");
 
@@ -1022,7 +1077,7 @@ function populateExerciseSelect() {
 function renderExerciseManager() {
 
     exerciseManagerList.innerHTML =
-        exercises.map(exercise => {
+        getExercisesAlphabetically().map(exercise => {
 
             const fieldNames =
                 exercise.fields
@@ -1438,9 +1493,19 @@ function renderWeeklyWorkoutList() {
         }).format(date);
         const dayWorkouts = workouts.filter(workout => workout.date === dateKey);
         const isToday = dateKey === getTodayInternal();
+        const singleWorkout = dayWorkouts.length === 1 ? dayWorkouts[0] : null;
+        const workoutNames = dayWorkouts.map(workout => {
+            const name = escapeHtml(workout.name);
+            return dayWorkouts.length > 1
+                ? `<li><button type="button" class="weekly-workout-button" data-workout-id="${workout.id}">${name}</button></li>`
+                : `<li>${name}</li>`;
+        }).join("");
 
         return `
-            <article class="weekly-day">
+            <article
+                class="weekly-day ${singleWorkout ? "weekly-day--clickable" : ""}"
+                ${singleWorkout ? `data-workout-id="${singleWorkout.id}" role="button" tabindex="0" aria-label="Otwórz trening: ${escapeHtml(singleWorkout.name)}"` : ""}
+            >
                 <div class="weekly-day-heading">
                     <div class="weekly-day-title">
                         <h2>${escapeHtml(weekday)}</h2>
@@ -1449,20 +1514,96 @@ function renderWeeklyWorkoutList() {
                     <p>${escapeHtml(formattedDate)}</p>
                 </div>
                 <ul class="weekly-workout-names">
-                    ${dayWorkouts.map(workout => `<li>${escapeHtml(workout.name)}</li>`).join("")}
+                    ${workoutNames}
                 </ul>
             </article>
         `;
     });
 
     weeklyWorkoutList.innerHTML = days.join("");
+
+    weeklyWorkoutList
+        .querySelectorAll(".weekly-day[data-workout-id]")
+        .forEach(day => {
+            const openWorkoutForDay = () =>
+                openWorkout(Number(day.dataset.workoutId));
+
+            day.addEventListener("click", openWorkoutForDay);
+            day.addEventListener("keydown", event => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+
+                event.preventDefault();
+                openWorkoutForDay();
+            });
+        });
+
+    weeklyWorkoutList
+        .querySelectorAll(".weekly-workout-button")
+        .forEach(button => {
+            button.addEventListener("click", () =>
+                openWorkout(Number(button.dataset.workoutId))
+            );
+        });
 }
+
+    function renderRareExercises() {
+        if (isWorkoutsLoading) {
+            rareExercisesList.innerHTML = `
+                <li class="muted" role="status">Pobieranie treningów...</li>
+            `;
+            return;
+        }
+
+        const requestedCount = Number.parseInt(rareExercisesWorkoutCount.value, 10);
+        const workoutCount = Number.isFinite(requestedCount) && requestedCount > 0
+            ? requestedCount
+            : 1;
+        const recentWorkouts = [...workouts]
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .slice(0, workoutCount);
+        const exerciseNames = new Map();
+
+        recentWorkouts.forEach(workout => {
+            workout.exercises.forEach(exercise => {
+                const name = exercise.name.trim();
+                exerciseNames.set(name.toLocaleLowerCase(), name);
+            });
+        });
+
+        const exerciseCounts = [...exerciseNames.entries()]
+            .map(([normalizedName, name]) => ({
+                name,
+                count: recentWorkouts.filter(workout =>
+                    workout.exercises.some(exercise =>
+                        exercise.name.trim().toLocaleLowerCase() === normalizedName
+                    )
+                ).length
+            }))
+            .sort((a, b) =>
+                a.count - b.count || a.name.localeCompare(b.name, "pl")
+            );
+
+        if (!exerciseCounts.length) {
+            rareExercisesList.innerHTML = `
+                <li class="muted">Brak ćwiczeń do wyświetlenia.</li>
+            `;
+            return;
+        }
+
+        rareExercisesList.innerHTML = exerciseCounts
+            .map(({ name, count }) => `
+                <li class="rare-exercise-row">
+                    <span>${escapeHtml(name)}</span>
+                    <span class="rare-exercise-count">${count} z ${recentWorkouts.length} treningów</span>
+                </li>
+            `)
+            .join("");
+    }
 
 function renderStatistics() {
     const exerciseNames = [...new Set(
         exercises
             .map(exercise => exercise.name)
-            .filter(isSbdExercise)
     )]
         .sort((a, b) => a.localeCompare(b, "pl"));
     const selectedExercise = statisticsExerciseSelect.value;
@@ -1488,33 +1629,66 @@ function renderStatistics() {
 function renderExerciseWeightChart(exerciseName) {
     const normalizedExerciseName = String(exerciseName).trim().toLocaleLowerCase();
 
-    if (!isSbdExercise(exerciseName)) {
-        exerciseWeightChart.innerHTML = `
-            <p class="muted">Wybierz ćwiczenie SBD, aby wyświetlić wykres.</p>
-        `;
-        return;
-    }
+    const matchingWorkouts = workouts.filter(workout =>
+        workout.exercises.some(exercise =>
+            exercise.name.trim().toLocaleLowerCase() === normalizedExerciseName
+        )
+    );
+    const mainSbdWorkouts = isSbdExercise(exerciseName)
+        ? matchingWorkouts.filter(workout =>
+            isMainSbdExerciseInWorkout(workout.name, exerciseName)
+        )
+        : [];
+    const sourceWorkouts = isSbdExercise(exerciseName) && mainSbdWorkouts.length
+        ? mainSbdWorkouts
+        : matchingWorkouts;
+    const getSets = workout => workout.exercises
+        .filter(exercise =>
+            exercise.name.trim().toLocaleLowerCase() === normalizedExerciseName
+        )
+        .flatMap(exercise => exercise.sets || []);
+    const getNumericValue = value => {
+        if (value === "" || value === null || value === undefined) return null;
 
-    const dataPoints = workouts.flatMap(workout => {
-        const sets = workout.exercises
-            .filter(exercise =>
-                exercise.name.trim().toLocaleLowerCase() === normalizedExerciseName &&
-                isMainSbdExerciseInWorkout(workout.name, exerciseName)
-            )
-            .flatMap(exercise => exercise.sets || []);
-        const weights = sets
-            .filter(set => set.weight !== "" && set.weight !== null && set.weight !== undefined)
-            .map(set => Number(set.weight))
-            .filter(weight => Number.isFinite(weight) && weight >= 0);
+        const numericValue = Number(value);
+        return Number.isFinite(numericValue) && numericValue >= 0
+            ? numericValue
+            : null;
+    };
+    const weightPoints = sourceWorkouts.flatMap(workout => {
+        const weights = getSets(workout)
+            .map(set => getNumericValue(set.weight))
+            .filter(weight => weight !== null);
 
         return weights.length
-            ? [{ date: workout.date, name: workout.name, weight: Math.max(...weights) }]
+            ? [{ date: workout.date, name: workout.name, value: Math.max(...weights) }]
             : [];
-    }).sort((a, b) => a.date.localeCompare(b.date));
+    });
+    const metric = weightPoints.length ? "weight" : "seconds";
+    const dataPoints = metric === "weight"
+        ? weightPoints
+        : sourceWorkouts.flatMap(workout => {
+            const durations = getSets(workout)
+                .map(set => {
+                    const seconds = getNumericValue(set.seconds);
+                    const minutes = getNumericValue(set.minutes);
+
+                    if (seconds === null && minutes === null) return null;
+
+                    return (minutes ?? 0) * 60 + (seconds ?? 0);
+                })
+                .filter(duration => duration !== null);
+
+            return durations.length
+                ? [{ date: workout.date, name: workout.name, value: Math.max(...durations) }]
+                : [];
+            });
+
+            dataPoints.sort((a, b) => a.date.localeCompare(b.date));
 
     if (!dataPoints.length) {
         exerciseWeightChart.innerHTML = `
-            <p class="muted">Brak zapisanych ciężarów dla ćwiczenia „${escapeHtml(exerciseName)}”.</p>
+            <p class="muted">Brak zapisanych danych dla ćwiczenia „${escapeHtml(exerciseName)}”.</p>
         `;
         return;
     }
@@ -1527,38 +1701,41 @@ function renderExerciseWeightChart(exerciseName) {
     const bottom = 62;
     const plotWidth = width - left - right;
     const plotHeight = height - top - bottom;
-    const weights = dataPoints.map(point => point.weight);
-    const minWeight = Math.min(...weights);
-    const maxWeight = Math.max(...weights);
-    const padding = Math.max((maxWeight - minWeight) * 0.15, maxWeight * 0.05, 1);
-    const minScale = Math.max(0, minWeight - padding);
-    const maxScale = maxWeight + padding;
+    const values = dataPoints.map(point => point.value);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const padding = Math.max((maxValue - minValue) * 0.15, maxValue * 0.05, 1);
+    const minScale = Math.max(0, minValue - padding);
+    const maxScale = maxValue + padding;
     const scaleRange = maxScale - minScale;
     const getX = index => dataPoints.length === 1
         ? left + plotWidth / 2
         : left + (index / (dataPoints.length - 1)) * plotWidth;
-    const getY = weight => top + ((maxScale - weight) / scaleRange) * plotHeight;
+    const getY = value => top + ((maxScale - value) / scaleRange) * plotHeight;
     const tickCount = 4;
     const gridLines = Array.from({ length: tickCount + 1 }, (_, index) => {
         const y = top + (index / tickCount) * plotHeight;
-        const weight = maxScale - (index / tickCount) * scaleRange;
+        const value = maxScale - (index / tickCount) * scaleRange;
         return `
             <line class="statistics-grid-line" x1="${left}" y1="${y}" x2="${width - right}" y2="${y}"></line>
-            <text class="statistics-axis-label" x="${left - 10}" y="${y + 4}" text-anchor="end">${weight.toFixed(1)}</text>
+            <text class="statistics-axis-label" x="${left - 10}" y="${y + 4}" text-anchor="end">${value.toFixed(metric === "weight" ? 1 : 0)}</text>
         `;
     }).join("");
     const linePoints = dataPoints
-        .map((point, index) => `${getX(index)},${getY(point.weight)}`)
+        .map((point, index) => `${getX(index)},${getY(point.value)}`)
         .join(" ");
     const labelStep = Math.max(1, Math.ceil(dataPoints.length / 6));
     const points = dataPoints.map((point, index) => {
         const x = getX(index);
-        const y = getY(point.weight);
+        const y = getY(point.value);
         const showDate = index % labelStep === 0 || index === dataPoints.length - 1;
+        const displayValue = metric === "weight"
+            ? `${point.value} kg`
+            : `${point.value} sek.`;
 
         return `
             <circle class="statistics-point" cx="${x}" cy="${y}" r="5">
-                <title>${escapeHtml(point.name)} — ${escapeHtml(formatDate(point.date))}: ${point.weight} kg</title>
+                <title>${escapeHtml(point.name)} — ${escapeHtml(formatDate(point.date))}: ${displayValue}</title>
             </circle>
             ${showDate
                 ? `<text class="statistics-axis-label statistics-date-label" x="${x}" y="${height - 24}" text-anchor="middle">${escapeHtml(formatDate(point.date))}</text>`
@@ -1567,11 +1744,11 @@ function renderExerciseWeightChart(exerciseName) {
     }).join("");
 
     exerciseWeightChart.innerHTML = `
-        <svg class="statistics-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Wykres maksymalnego ciężaru dla ćwiczenia ${escapeHtml(exerciseName)} w kolejnych treningach">
+        <svg class="statistics-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Wykres ${metric === "weight" ? "maksymalnego ciężaru" : "najdłuższego czasu"} dla ćwiczenia ${escapeHtml(exerciseName)} w kolejnych treningach">
             ${gridLines}
             <polyline class="statistics-chart-line" points="${linePoints}"></polyline>
             ${points}
-            <text class="statistics-axis-title" x="16" y="${top + plotHeight / 2}" text-anchor="middle" transform="rotate(-90 16 ${top + plotHeight / 2})">kg</text>
+            <text class="statistics-axis-title" x="16" y="${top + plotHeight / 2}" text-anchor="middle" transform="rotate(-90 16 ${top + plotHeight / 2})">${metric === "weight" ? "kg" : "sek."}</text>
         </svg>
     `;
 }
@@ -1850,6 +2027,10 @@ function openWorkout(id, startEditing = false) {
 
 
     historyView.classList.add(
+        "hidden"
+    );
+
+    weeklyView.classList.add(
         "hidden"
     );
 
@@ -2260,7 +2441,7 @@ function renderExercise(
 
 
         
-            const notes = !highlightMaxWeight && exercise.notes?.trim()
+            const notes = exercise.notes?.trim()
                 ? `
                     <div class="workout-view-notes">
                         <strong>Notatka:</strong>
@@ -4045,6 +4226,34 @@ backToHistoryFromWeeklyButton.addEventListener(
     }
 );
 
+rareExercisesViewButton.addEventListener(
+    "click",
+    () => {
+        historyView.classList.add("hidden");
+        exercisesView.classList.add("hidden");
+        exerciseConfigView.classList.add("hidden");
+        gymsView.classList.add("hidden");
+        weeklyView.classList.add("hidden");
+        statisticsView.classList.add("hidden");
+        rareExercisesView.classList.remove("hidden");
+
+        renderRareExercises();
+    }
+);
+
+backToHistoryFromRareExercisesButton.addEventListener(
+    "click",
+    () => {
+        rareExercisesView.classList.add("hidden");
+        historyView.classList.remove("hidden");
+    }
+);
+
+rareExercisesWorkoutCount.addEventListener(
+    "input",
+    renderRareExercises
+);
+
 exercisesTabButton.addEventListener(
     "click",
     () => {
@@ -4556,6 +4765,10 @@ if (!weeklyView.classList.contains("hidden")) {
 
 if (!statisticsView.classList.contains("hidden")) {
     renderStatistics();
+}
+
+if (!rareExercisesView.classList.contains("hidden")) {
+    renderRareExercises();
 }
 
 }

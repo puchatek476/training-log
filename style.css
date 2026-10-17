@@ -418,6 +418,19 @@ border-radius: var(--radius);
 background: var(--surface);
 }
 
+.weekly-day--clickable {
+cursor: pointer;
+}
+
+.weekly-day--clickable:hover {
+border-color: var(--accent);
+}
+
+.weekly-day--clickable:focus-visible {
+outline: 2px solid var(--accent);
+outline-offset: 2px;
+}
+
 .weekly-day-heading h2 {
 margin: 0;
 font-size: 16px;
@@ -460,8 +473,67 @@ font-size: 14px;
 font-weight: 700;
 }
 
+.weekly-workout-button {
+padding: 0;
+border: 0;
+background: transparent;
+color: var(--text);
+font: inherit;
+font-weight: 700;
+text-align: left;
+cursor: pointer;
+}
+
+.weekly-workout-button:hover {
+color: var(--accent-dark);
+}
+
+.weekly-workout-button:focus-visible {
+outline: 2px solid var(--accent);
+outline-offset: 2px;
+}
+
 .statistics-section {
 padding-bottom: 48px;
+}
+
+.rare-exercises-section {
+padding-bottom: 48px;
+}
+
+.rare-exercises-controls {
+max-width: 320px;
+margin-bottom: 20px;
+}
+
+.rare-exercises-list {
+display: grid;
+gap: 0;
+max-width: 720px;
+margin: 0;
+padding: 0;
+list-style: none;
+}
+
+.rare-exercise-row {
+display: flex;
+align-items: baseline;
+justify-content: space-between;
+gap: 16px;
+padding: 14px 0;
+border-bottom: 1px solid var(--border);
+overflow-wrap: anywhere;
+}
+
+.rare-exercise-row:first-child {
+border-top: 1px solid var(--border);
+}
+
+.rare-exercise-count {
+flex-shrink: 0;
+color: var(--muted);
+font-size: 13px;
+font-weight: 600;
 }
 
 .statistics-controls {
@@ -1234,6 +1306,7 @@ background: rgba(247, 120, 101, 0.04);
 
 #exerciseConfigView .dialog-actions {
     margin-top: 24px;
+    margin-bottom: 24px;
 }
 
 .field-toggle {

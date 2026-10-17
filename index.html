@@ -103,6 +103,14 @@
                         Eksportuj
                     </button>
 
+                    <button
+                        type="button"
+                        id="rareExercisesViewButton"
+                        class="button button-secondary"
+                    >
+                        Najrzadziej wykonywane
+                    </button>
+
                     <input
                         type="file"
                         id="importJsonFile"
@@ -201,6 +209,44 @@
 
 </section>
 
+<!-- NAJRZADZIEJ WYKONYWANE ĆWICZENIA -->
+
+<section id="rareExercisesView" class="hidden">
+
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">ANALIZA TRENINGÓW</p>
+            <h1>Najrzadziej wykonywane</h1>
+        </div>
+
+        <button
+            id="backToHistoryFromRareExercisesButton"
+            class="button button-secondary"
+        >
+            ← Historia
+        </button>
+    </header>
+
+    <main>
+        <section class="workouts-section rare-exercises-section">
+            <div class="rare-exercises-controls">
+                <label class="filter-control" for="rareExercisesWorkoutCount">
+                    Ostatnie treningi do sprawdzenia
+                    <input
+                        id="rareExercisesWorkoutCount"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value="10"
+                    >
+                </label>
+            </div>
+            <ol id="rareExercisesList" class="rare-exercises-list"></ol>
+        </section>
+    </main>
+
+</section>
+
 <!-- OSTATNIE 7 DNI -->
 
 <section id="weeklyView" class="hidden">
@@ -254,8 +300,8 @@
                 </label>
             </div>
             <section class="statistics-chart-card" aria-labelledby="statisticsChartTitle">
-                <h2 id="statisticsChartTitle">Maksymalny ciężar na treningu</h2>
-                <p class="muted">Największy ciężar dla ćwiczenia w treningach głównych danego boju.</p>
+                <h2 id="statisticsChartTitle">Wyniki ćwiczenia na treningu</h2>
+                <p class="muted">Największy ciężar lub najdłuższy czas ćwiczenia w kolejnych treningach.</p>
                 <div id="exerciseWeightChart"></div>
             </section>
         </section>
