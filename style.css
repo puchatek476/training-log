@@ -468,9 +468,23 @@ list-style: none;
 }
 
 .weekly-workout-names li {
+display: flex;
+align-items: center;
+flex-wrap: wrap;
+gap: 6px;
 overflow-wrap: anywhere;
 font-size: 14px;
 font-weight: 700;
+}
+
+.weekly-planned-badge {
+padding: 3px 6px;
+border-radius: 6px;
+background: var(--accent);
+color: var(--surface);
+font-size: 9px;
+font-weight: 800;
+letter-spacing: 0.06em;
 }
 
 .weekly-workout-button {

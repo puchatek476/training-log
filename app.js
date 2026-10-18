@@ -1472,18 +1472,30 @@ function renderWeeklyWorkoutList() {
         return;
     }
 
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
+    const todayKey = getTodayInternal();
+    const today = new Date(`${todayKey}T12:00:00`);
+    const visibleDateKeys = new Set(
+        Array.from({ length: 7 }, (_, index) => {
+            const date = new Date(today);
+            date.setDate(today.getDate() - (6 - index));
 
-    const days = Array.from({ length: 7 }, (_, index) => {
-        const date = new Date(today);
-        date.setDate(today.getDate() - (6 - index));
+            return [
+                date.getFullYear(),
+                String(date.getMonth() + 1).padStart(2, "0"),
+                String(date.getDate()).padStart(2, "0")
+            ].join("-");
+        })
+    );
 
-        const dateKey = [
-            date.getFullYear(),
-            String(date.getMonth() + 1).padStart(2, "0"),
-            String(date.getDate()).padStart(2, "0")
-        ].join("-");
+    workouts.forEach(workout => {
+        if (workout.date > todayKey) {
+            visibleDateKeys.add(workout.date);
+        }
+    });
+
+    const days = [...visibleDateKeys].sort().map(dateKey => {
+        const [year, month, day] = dateKey.split("-").map(Number);
+        const date = new Date(year, month - 1, day, 12);
         const weekday = new Intl.DateTimeFormat("pl-PL", {
             weekday: "long"
         }).format(date);
@@ -1492,13 +1504,23 @@ function renderWeeklyWorkoutList() {
             month: "long"
         }).format(date);
         const dayWorkouts = workouts.filter(workout => workout.date === dateKey);
-        const isToday = dateKey === getTodayInternal();
+        const isToday = dateKey === todayKey;
         const singleWorkout = dayWorkouts.length === 1 ? dayWorkouts[0] : null;
         const workoutNames = dayWorkouts.map(workout => {
             const name = escapeHtml(workout.name);
-            return dayWorkouts.length > 1
-                ? `<li><button type="button" class="weekly-workout-button" data-workout-id="${workout.id}">${name}</button></li>`
-                : `<li>${name}</li>`;
+            const workoutName = dayWorkouts.length > 1
+                ? `<button type="button" class="weekly-workout-button" data-workout-id="${workout.id}">${name}</button>`
+                : name;
+            const plannedBadge = workout.date > todayKey
+                ? '<span class="weekly-planned-badge">ZAPLANOWANE</span>'
+                : "";
+
+            return `
+                <li class="weekly-workout-item">
+                    ${workoutName}
+                    ${plannedBadge}
+                </li>
+            `;
         }).join("");
 
         return `
