@@ -262,6 +262,9 @@ const activeCompetitionName =
 const activeCompetitionDate =
     document.querySelector("#activeCompetitionDate");
 
+const competitionNotes =
+    document.querySelector("#competitionNotes");
+
 const competitionLifts =
     document.querySelector("#competitionLifts");
 
@@ -2408,6 +2411,7 @@ function openCompetition(competitionId) {
     activeCompetitionId = competition.id;
     activeCompetitionName.textContent = competition.name;
     activeCompetitionDate.textContent = formatDate(competition.date);
+    competitionNotes.value = competition.notes || "";
     competitionSaveStatus.textContent = "";
 
     historyView.classList.add("hidden");
@@ -2467,6 +2471,14 @@ function renderCompetitionDetails(competition) {
                             </div>
                         `).join("")}
                     </div>
+                    <label class="form-field competition-lift-notes">
+                        Notatki do boju
+                        <textarea
+                            class="competition-lift-notes-input"
+                            rows="3"
+                            placeholder="Notatki do ${lift.label.toLocaleLowerCase()}..."
+                        >${escapeHtml(competitionLift.notes || "")}</textarea>
+                    </label>
                 </section>
             `;
         }).join("");
@@ -2579,7 +2591,8 @@ competitionForm.addEventListener("submit", async event => {
             .insert({
                 user_id: user.id,
                 name,
-                competition_date: date
+                competition_date: date,
+                notes: ""
             })
             .select()
             .single();
@@ -2593,7 +2606,8 @@ competitionForm.addEventListener("submit", async event => {
         const liftsToInsert = selectedLiftKeys.map(liftKey => ({
             competition_id: data.id,
             lift_key: liftKey,
-            attempts: initialAttempts
+            attempts: initialAttempts,
+            notes: ""
         }));
 
         const { error: liftsError } = await supabaseClient
@@ -2616,10 +2630,12 @@ competitionForm.addEventListener("submit", async event => {
             id: data.id,
             name: data.name,
             date: data.competition_date,
+            notes: data.notes || "",
             lifts: liftsToInsert.map((lift, index) => ({
                 id: `${data.id}-${index}`,
                 liftKey: lift.lift_key,
-                attempts: initialAttempts.map(attempt => ({ ...attempt }))
+                attempts: initialAttempts.map(attempt => ({ ...attempt })),
+                notes: lift.notes
             }))
         };
 
@@ -2669,7 +2685,8 @@ saveCompetitionButton.addEventListener("click", async () => {
         updates.push({
             competition_id: competition.id,
             lift_key: liftKey,
-            attempts
+            attempts,
+            notes: liftCard.querySelector(".competition-lift-notes-input").value.trim()
         });
     }
 
@@ -2682,11 +2699,19 @@ saveCompetitionButton.addEventListener("click", async () => {
     competitionSaveStatus.textContent = "Zapisywanie...";
 
     try {
-        const { error } = await supabaseClient
+        const { error: liftsError } = await supabaseClient
             .from("competition_lifts")
             .upsert(updates, { onConflict: "competition_id,lift_key" });
 
-        if (error) throw error;
+        if (liftsError) throw liftsError;
+
+        const notes = competitionNotes.value.trim();
+        const { error: competitionError } = await supabaseClient
+            .from("competitions")
+            .update({ notes })
+            .eq("id", competition.id);
+
+        if (competitionError) throw competitionError;
 
         competition.lifts = updates.map(update => {
             const existingLift = competition.lifts.find(
@@ -2696,10 +2721,12 @@ saveCompetitionButton.addEventListener("click", async () => {
             return {
                 id: existingLift?.id,
                 liftKey: update.lift_key,
-                attempts: update.attempts
+                attempts: update.attempts,
+                notes: update.notes
             };
         });
 
+        competition.notes = notes;
         competitionSaveStatus.textContent = "Wyniki zapisane.";
     } catch (error) {
         console.error("Błąd zapisu wyników zawodów:", error);
@@ -5244,8 +5271,10 @@ async function fetchDataFromSupabase() {
             .map(lift => ({
                 id: lift.id,
                 liftKey: lift.lift_key,
-                attempts: lift.attempts
-            }))
+                attempts: lift.attempts,
+                notes: lift.notes || ""
+            })),
+        notes: competition.notes || ""
     }));
 
 
@@ -5443,8 +5472,10 @@ function buildExportPayload() {
         competitions: competitions.map(competition => ({
             date: competition.date,
             title: competition.name,
+            notes: competition.notes || "",
             lifts: competition.lifts.map(lift => ({
                 liftKey: lift.liftKey,
+                notes: lift.notes || "",
                 attempts: lift.attempts.map(attempt => ({
                     weight: attempt.weight ?? null,
                     result: attempt.result ?? null
@@ -5673,7 +5704,20 @@ importJsonFile.addEventListener("change", async () => {
                         invalid = true;
                     }
                 });
+
+                if (lift.notes !== undefined && typeof lift.notes !== "string") {
+                    errors.push(`${liftLabel}: notatka musi być tekstem.`);
+                    invalid = true;
+                }
             });
+
+            if (
+                competition.notes !== undefined &&
+                typeof competition.notes !== "string"
+            ) {
+                errors.push(`${label}: notatki muszą być tekstem.`);
+                invalid = true;
+            }
 
             if (!invalid) validCompetitions.push(competition);
         });
@@ -5907,7 +5951,8 @@ importJsonFile.addEventListener("change", async () => {
                     .insert({
                         user_id: user.id,
                         name: item.title.trim(),
-                        competition_date: item.date
+                        competition_date: item.date,
+                        notes: item.notes || ""
                     })
                     .select()
                     .single();
@@ -5923,7 +5968,8 @@ importJsonFile.addEventListener("change", async () => {
                             ? null
                             : Number(attempt.weight),
                         result: attempt.result ?? null
-                    }))
+                    })),
+                    notes: lift.notes || ""
                 }));
 
                 const { error: liftsError } = await supabaseClient
