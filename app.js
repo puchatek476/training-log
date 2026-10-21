@@ -26,9 +26,17 @@ const exercises = [
 ];
 
 let workouts = [];
+let competitions = [];
 let isWorkoutsLoading = true;
+let activeCompetitionId = null;
 
 let gyms = [];
+
+const COMPETITION_LIFTS = [
+    { key: "squat", label: "Przysiad" },
+    { key: "bench", label: "Wyciskanie" },
+    { key: "deadlift", label: "Martwy ciąg" }
+];
 
 const FIELD_DEFINITIONS = {
     weight: {
@@ -134,6 +142,19 @@ function isSbdExercise(name) {
     );
 }
 
+function getSbdExerciseBaseName(name) {
+    const normalizedName = String(name).trim().toLocaleLowerCase();
+
+    return [...SBD_EXERCISE_NAMES].find(
+        baseName =>
+            normalizedName === baseName ||
+            (
+                normalizedName.startsWith(`${baseName} (`) &&
+                normalizedName.endsWith(")")
+            )
+    ) || null;
+}
+
 function isMainSbdExerciseInWorkout(workoutName, exerciseName) {
     const normalizedWorkoutName =
         String(workoutName).toLocaleLowerCase();
@@ -225,6 +246,54 @@ const rareExercisesWorkoutCount =
 
 const rareExercisesList =
     document.querySelector("#rareExercisesList");
+
+const addCompetitionButton =
+    document.querySelector("#addCompetitionButton");
+
+const competitionView =
+    document.querySelector("#competitionView");
+
+const backFromCompetitionButton =
+    document.querySelector("#backFromCompetitionButton");
+
+const activeCompetitionName =
+    document.querySelector("#activeCompetitionName");
+
+const activeCompetitionDate =
+    document.querySelector("#activeCompetitionDate");
+
+const competitionLifts =
+    document.querySelector("#competitionLifts");
+
+const competitionTotal =
+    document.querySelector("#competitionTotal");
+
+const saveCompetitionButton =
+    document.querySelector("#saveCompetitionButton");
+
+const competitionSaveStatus =
+    document.querySelector("#competitionSaveStatus");
+
+const competitionDialog =
+    document.querySelector("#competitionDialog");
+
+const competitionForm =
+    document.querySelector("#competitionForm");
+
+const competitionName =
+    document.querySelector("#competitionName");
+
+const competitionDate =
+    document.querySelector("#competitionDate");
+
+const createCompetitionButton =
+    document.querySelector("#createCompetitionButton");
+
+const closeCompetitionDialogButton =
+    document.querySelector("#closeCompetitionDialogButton");
+
+const cancelCompetitionButton =
+    document.querySelector("#cancelCompetitionButton");
 
 const statisticsView =
     document.querySelector("#statisticsView");
@@ -1860,41 +1929,40 @@ let filtered =
         return matchesSearch && matchesExercise;
     });
 
+const filteredCompetitions = competitions.filter(competition =>
+    !exerciseFilterValue &&
+    (
+        !query ||
+        competition.name.toLocaleLowerCase().includes(query)
+    )
+);
+
+const entries = [
+    ...filtered.map(workout => ({ ...workout, entryType: "workout" })),
+    ...filteredCompetitions.map(competition => ({
+        ...competition,
+        entryType: "competition"
+    }))
+];
 
 if (sortFilter.value === "newest") {
-
-    filtered.sort(
-        (a, b) => b.date.localeCompare(a.date)
-    );
-
+    entries.sort((a, b) => b.date.localeCompare(a.date));
 } else if (sortFilter.value === "oldest") {
-
-    filtered.sort(
-        (a, b) => a.date.localeCompare(b.date)
-    );
-
+    entries.sort((a, b) => a.date.localeCompare(b.date));
 } else if (sortFilter.value === "name") {
-
-    filtered.sort(
-        (a, b) =>
-            a.name.localeCompare(
-                b.name,
-                "pl"
-            )
-    );
+    entries.sort((a, b) => a.name.localeCompare(b.name, "pl"));
 }
 
-
 resultsCount.textContent =
-    `${filtered.length} ${filtered.length === 1 ? "trening" : "treningów"}`;
+    `${entries.length} ${entries.length === 1 ? "wpis" : "wpisów"}`;
 
 
-if (!filtered.length) {
+if (!entries.length) {
 
     workoutsList.innerHTML = `
         <div class="workout-card">
             <p class="muted">
-                Brak treningów spełniających kryteria.
+                Brak wpisów spełniających kryteria.
             </p>
         </div>
     `;
@@ -1904,7 +1972,24 @@ if (!filtered.length) {
 
 
 workoutsList.innerHTML =
-    filtered.map(workout => {
+    entries.map(entry => {
+        if (entry.entryType === "competition") {
+            return `
+                <article
+                    class="workout-card workout-card--competition"
+                    data-competition-id="${escapeHtml(entry.id)}"
+                    tabindex="0"
+                    role="button"
+                    aria-label="Otwórz zawody: ${escapeHtml(entry.name)}"
+                >
+                    <span class="competition-card-badge">ZAWODY</span>
+                    <h3 class="workout-card-title">${escapeHtml(entry.name)}</h3>
+                    <div class="workout-date">${formatDate(entry.date)}</div>
+                </article>
+            `;
+        }
+
+        const workout = entry;
 
         const visibleExercises =
             exerciseFilterValue
@@ -1974,6 +2059,20 @@ workoutsList.innerHTML =
 
     }).join("");
 
+document
+    .querySelectorAll(".workout-card[data-competition-id]")
+    .forEach(card => {
+        const openCompetitionCard = () =>
+            openCompetition(card.dataset.competitionId);
+
+        card.addEventListener("click", openCompetitionCard);
+        card.addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            event.preventDefault();
+            openCompetitionCard();
+        });
+    });
 
 document
     .querySelectorAll(".workout-card[data-id]")
@@ -2295,6 +2394,322 @@ function escapeHtml(value) {
     })[char]);
 }
 
+function getCompetitionLift(liftKey) {
+    return COMPETITION_LIFTS.find(lift => lift.key === liftKey);
+}
+
+function openCompetition(competitionId) {
+    const competition = competitions.find(
+        item => item.id === competitionId
+    );
+
+    if (!competition) return;
+
+    activeCompetitionId = competition.id;
+    activeCompetitionName.textContent = competition.name;
+    activeCompetitionDate.textContent = formatDate(competition.date);
+    competitionSaveStatus.textContent = "";
+
+    historyView.classList.add("hidden");
+    activeWorkoutView.classList.add("hidden");
+    competitionView.classList.remove("hidden");
+
+    renderCompetitionDetails(competition);
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}
+
+function renderCompetitionDetails(competition) {
+    competitionLifts.innerHTML = COMPETITION_LIFTS
+        .filter(lift => competition.lifts.some(item => item.liftKey === lift.key))
+        .map(lift => {
+            const competitionLift = competition.lifts.find(
+                item => item.liftKey === lift.key
+            );
+            const attempts = competitionLift.attempts;
+
+            return `
+                <section class="competition-lift-card" data-lift-key="${lift.key}">
+                    <h2>${lift.label}</h2>
+                    <div class="competition-attempts">
+                                ${attempts.map((attempt, index) => `
+                            <div
+                                class="competition-attempt-row"
+                                data-result="${escapeHtml(attempt.result || "")}"
+                            >
+                                <label class="competition-attempt-weight">
+                                    Podejście ${index + 1}
+                                    <input
+                                        class="competition-attempt-input"
+                                        type="number"
+                                        min="0"
+                                        step="0.5"
+                                        inputmode="decimal"
+                                        placeholder="Ciężar (kg)"
+                                        value="${attempt.weight === null || attempt.weight === undefined ? "" : escapeHtml(String(attempt.weight))}"
+                                    >
+                                </label>
+                                <div class="competition-attempt-result">
+                                    <button
+                                        type="button"
+                                        class="competition-result-button competition-result-button--success"
+                                        data-result="success"
+                                        aria-label="Podejście ${index + 1} zaliczone"
+                                        aria-pressed="${attempt.result === "success"}"
+                                    >✓</button>
+                                    <button
+                                        type="button"
+                                        class="competition-result-button competition-result-button--failed"
+                                        data-result="failed"
+                                        aria-label="Podejście ${index + 1} spalone"
+                                        aria-pressed="${attempt.result === "failed"}"
+                                    >×</button>
+                                </div>
+                            </div>
+                        `).join("")}
+                    </div>
+                </section>
+            `;
+        }).join("");
+
+    updateCompetitionTotal();
+}
+
+function updateCompetitionTotal() {
+    const total = [...competitionLifts.querySelectorAll(".competition-lift-card")]
+        .reduce((sum, liftCard) => {
+            const successfulWeights = [
+                ...liftCard.querySelectorAll('.competition-attempt-row[data-result="success"]')
+            ]
+                .map(row => row.querySelector("input").value)
+                .filter(value => value !== "" && Number.isFinite(Number(value)))
+                .map(Number);
+
+            return sum + (successfulWeights.length ? Math.max(...successfulWeights) : 0);
+        }, 0);
+
+    competitionTotal.textContent = `${Number.isInteger(total) ? total : total.toFixed(1)} kg`;
+}
+
+addCompetitionButton.addEventListener("click", () => {
+    competitionForm.reset();
+    competitionDate.value = formatDate(getTodayInternal());
+    competitionDialog.showModal();
+});
+
+closeCompetitionDialogButton.addEventListener(
+    "click",
+    () => competitionDialog.close()
+);
+
+cancelCompetitionButton.addEventListener(
+    "click",
+    () => competitionDialog.close()
+);
+
+backFromCompetitionButton.addEventListener("click", () => {
+    activeCompetitionId = null;
+    competitionView.classList.add("hidden");
+    historyView.classList.remove("hidden");
+    refreshApp();
+});
+
+competitionLifts.addEventListener("input", updateCompetitionTotal);
+
+competitionLifts.addEventListener("click", event => {
+    const button = event.target.closest(".competition-result-button");
+    if (!button) return;
+
+    const attemptRow = button.closest(".competition-attempt-row");
+    const result = attemptRow.dataset.result === button.dataset.result
+        ? ""
+        : button.dataset.result;
+    attemptRow.dataset.result = result;
+
+    attemptRow.querySelectorAll(".competition-result-button").forEach(resultButton => {
+        resultButton.setAttribute(
+            "aria-pressed",
+            String(resultButton.dataset.result === result)
+        );
+    });
+
+    updateCompetitionTotal();
+});
+
+competitionForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (createCompetitionButton.disabled) return;
+
+    const date = parseUserDate(competitionDate.value);
+    const name = competitionName.value.trim();
+    const selectedLiftKeys = [
+        ...competitionForm.querySelectorAll('input[name="competitionLift"]:checked')
+    ].map(input => input.value);
+
+    if (!date) {
+        alert("Wpisz poprawną datę w formacie DD/MM/RRRR.");
+        return;
+    }
+
+    if (!name) {
+        alert("Wpisz nazwę zawodów.");
+        return;
+    }
+
+    if (!selectedLiftKeys.length) {
+        alert("Wybierz przynajmniej jeden bój.");
+        return;
+    }
+
+    createCompetitionButton.disabled = true;
+
+    try {
+        const {
+            data: { user },
+            error: userError
+        } = await supabaseClient.auth.getUser();
+
+        if (userError) throw userError;
+        if (!user) throw new Error("Musisz być zalogowany.");
+
+        const {
+            data,
+            error
+        } = await supabaseClient
+            .from("competitions")
+            .insert({
+                user_id: user.id,
+                name,
+                competition_date: date
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        const initialAttempts = Array.from(
+            { length: 3 },
+            () => ({ weight: null, result: null })
+        );
+        const liftsToInsert = selectedLiftKeys.map(liftKey => ({
+            competition_id: data.id,
+            lift_key: liftKey,
+            attempts: initialAttempts
+        }));
+
+        const { error: liftsError } = await supabaseClient
+            .from("competition_lifts")
+            .insert(liftsToInsert);
+
+        if (liftsError) {
+            const { error: cleanupError } = await supabaseClient
+                .from("competitions")
+                .delete()
+                .eq("id", data.id);
+
+            if (cleanupError) {
+                console.error("Nie udało się usunąć niekompletnych zawodów:", cleanupError);
+            }
+            throw liftsError;
+        }
+
+        const competition = {
+            id: data.id,
+            name: data.name,
+            date: data.competition_date,
+            lifts: liftsToInsert.map((lift, index) => ({
+                id: `${data.id}-${index}`,
+                liftKey: lift.lift_key,
+                attempts: initialAttempts.map(attempt => ({ ...attempt }))
+            }))
+        };
+
+        competitions.push(competition);
+        competitionDialog.close();
+        refreshApp();
+        openCompetition(competition.id);
+    } catch (error) {
+        console.error("Błąd tworzenia zawodów:", error);
+        alert(error.message || "Nie udało się utworzyć zawodów.");
+    } finally {
+        createCompetitionButton.disabled = false;
+    }
+});
+
+saveCompetitionButton.addEventListener("click", async () => {
+    const competition = competitions.find(
+        item => item.id === activeCompetitionId
+    );
+    if (!competition || saveCompetitionButton.disabled) return;
+
+    const liftRows = [
+        ...competitionLifts.querySelectorAll(".competition-lift-card")
+    ];
+    const updates = [];
+    let invalidAttempt = null;
+
+    for (const liftCard of liftRows) {
+        const liftKey = liftCard.dataset.liftKey;
+        const attempts = [
+            ...liftCard.querySelectorAll(".competition-attempt-row")
+        ].map((row, index) => {
+            const value = row.querySelector("input").value.trim();
+            const weight = value === "" ? null : Number(value);
+
+            if (weight !== null && (!Number.isFinite(weight) || weight < 0)) {
+                invalidAttempt =
+                    `${getCompetitionLift(liftKey).label}, podejście ${index + 1}: wpisz poprawny ciężar.`;
+            }
+
+            return {
+                weight,
+                result: row.dataset.result || null
+            };
+        });
+
+        updates.push({
+            competition_id: competition.id,
+            lift_key: liftKey,
+            attempts
+        });
+    }
+
+    if (invalidAttempt) {
+        alert(invalidAttempt);
+        return;
+    }
+
+    saveCompetitionButton.disabled = true;
+    competitionSaveStatus.textContent = "Zapisywanie...";
+
+    try {
+        const { error } = await supabaseClient
+            .from("competition_lifts")
+            .upsert(updates, { onConflict: "competition_id,lift_key" });
+
+        if (error) throw error;
+
+        competition.lifts = updates.map(update => {
+            const existingLift = competition.lifts.find(
+                lift => lift.liftKey === update.lift_key
+            );
+
+            return {
+                id: existingLift?.id,
+                liftKey: update.lift_key,
+                attempts: update.attempts
+            };
+        });
+
+        competitionSaveStatus.textContent = "Wyniki zapisane.";
+    } catch (error) {
+        console.error("Błąd zapisu wyników zawodów:", error);
+        competitionSaveStatus.textContent = "";
+        alert(error.message || "Nie udało się zapisać wyników zawodów.");
+    } finally {
+        saveCompetitionButton.disabled = false;
+    }
+});
+
 function renderExercise(
     exercise,
     exerciseIndex,
@@ -2402,7 +2817,12 @@ function renderExercise(
                         secondaryBits.push(`${set.minutes} min`);
                     }
 
-                    if (hasWeightOrReps && set.load !== "" && set.load !== null && set.load !== undefined) {
+                    if (
+                        (hasWeightOrReps || fallbackPrimaryBits.length > 0) &&
+                        set.load !== "" &&
+                        set.load !== null &&
+                        set.load !== undefined
+                    ) {
                         secondaryBits.push(`Obciążenie: ${set.load}`);
                     }
 
@@ -2632,7 +3052,15 @@ function renderExercise(
                         >↓</button>
                     </div>
 
-                    <h2>${exercise.name}</h2>
+                    <h2>
+                        <button
+                            type="button"
+                            class="exercise-name-trigger"
+                            data-exercise-history-name="${escapeHtml(exercise.name)}"
+                        >
+                            ${escapeHtml(exercise.name)}
+                        </button>
+                    </h2>
 
                 </div>
 
@@ -3185,16 +3613,22 @@ async function addSet(exerciseIndex) {
 
     const previousSet =
         exercise.sets[exercise.sets.length - 1];
-    const normalizedExerciseName =
-        exercise.name.trim().toLocaleLowerCase();
+    const sbdExerciseBaseName =
+        getSbdExerciseBaseName(exercise.name);
 
     if (
         previousSet &&
-        SBD_EXERCISE_NAMES.has(normalizedExerciseName)
+        (
+            sbdExerciseBaseName ||
+            config?.fields?.includes("setType")
+        )
     ) {
         setData.setType = previousSet.setType || "";
 
-        if (normalizedExerciseName === "deadlift") {
+        if (
+            sbdExerciseBaseName === "deadlift" ||
+            config?.fields?.includes("deadliftStyle")
+        ) {
             setData.deadliftStyle = previousSet.deadliftStyle || "";
         }
     }
@@ -4555,6 +4989,42 @@ async function fetchDataFromSupabase() {
         return;
     }
 
+    const {
+        data: competitionData,
+        error: competitionError
+    } =
+        await supabaseClient
+            .from("competitions")
+            .select("*")
+            .order("competition_date", { ascending: false });
+
+    if (competitionError) {
+        console.error("Błąd pobierania zawodów:", competitionError);
+        alert("Nie udało się pobrać zawodów. Sprawdź, czy tabele competitions i competition_lifts zostały utworzone w Supabase.");
+        return;
+    }
+
+    const competitionIds = competitionData.map(competition => competition.id);
+    let competitionLiftData = [];
+
+    if (competitionIds.length) {
+        const {
+            data,
+            error
+        } = await supabaseClient
+            .from("competition_lifts")
+            .select("*")
+            .in("competition_id", competitionIds);
+
+        if (error) {
+            console.error("Błąd pobierania bojów zawodów:", error);
+            alert("Nie udało się pobrać wyników zawodów z Supabase.");
+            return;
+        }
+
+        competitionLiftData = data;
+    }
+
 
     /*
      * POBIERZ ĆWICZENIA W TRENINGACH
@@ -4765,6 +5235,19 @@ async function fetchDataFromSupabase() {
             }
         );
 
+    competitions = competitionData.map(competition => ({
+        id: competition.id,
+        name: competition.name,
+        date: competition.competition_date,
+        lifts: competitionLiftData
+            .filter(lift => lift.competition_id === competition.id)
+            .map(lift => ({
+                id: lift.id,
+                liftKey: lift.lift_key,
+                attempts: lift.attempts
+            }))
+    }));
+
 
 }
 
@@ -4956,6 +5439,17 @@ function buildExportPayload() {
                     )
                 }))
             }))
+        })),
+        competitions: competitions.map(competition => ({
+            date: competition.date,
+            title: competition.name,
+            lifts: competition.lifts.map(lift => ({
+                liftKey: lift.liftKey,
+                attempts: lift.attempts.map(attempt => ({
+                    weight: attempt.weight ?? null,
+                    result: attempt.result ?? null
+                }))
+            }))
         }))
     };
 }
@@ -5007,14 +5501,18 @@ importJsonFile.addEventListener("change", async () => {
             ? json.workouts
             : json.workout
                 ? [json.workout]
-                : null;
+                : [];
+        const importedCompetitions = Array.isArray(json.competitions)
+            ? json.competitions
+            : [];
 
-        if (!importedWorkouts?.length) {
-            throw new Error("JSON nie zawiera żadnych treningów.");
+        if (!importedWorkouts.length && !importedCompetitions.length) {
+            throw new Error("JSON nie zawiera treningów ani zawodów.");
         }
 
         const errors = [];
         const validWorkouts = [];
+        const validCompetitions = [];
 
         importedWorkouts.forEach((workout, wi) => {
             const label = `Trening ${wi + 1}`;
@@ -5117,6 +5615,69 @@ importJsonFile.addEventListener("change", async () => {
             if (!invalid) validWorkouts.push(workout);
         });
 
+        importedCompetitions.forEach((competition, index) => {
+            const label = `Zawody ${index + 1}`;
+
+            if (
+                !competition ||
+                typeof competition.date !== "string" ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(competition.date) ||
+                Number.isNaN(Date.parse(`${competition.date}T00:00:00`))
+            ) {
+                errors.push(`${label}: niepoprawna data (wymagane RRRR-MM-DD).`);
+                return;
+            }
+
+            if (typeof competition.title !== "string" || !competition.title.trim()) {
+                errors.push(`${label}: brak nazwy.`);
+                return;
+            }
+
+            if (!Array.isArray(competition.lifts) || !competition.lifts.length) {
+                errors.push(`${label}: wybierz przynajmniej jeden bój.`);
+                return;
+            }
+
+            let invalid = false;
+            const liftKeys = new Set();
+
+            competition.lifts.forEach((lift, liftIndex) => {
+                const liftLabel = `${label}, bój ${liftIndex + 1}`;
+
+                if (
+                    !lift ||
+                    !COMPETITION_LIFTS.some(item => item.key === lift.liftKey) ||
+                    liftKeys.has(lift.liftKey)
+                ) {
+                    errors.push(`${liftLabel}: niepoprawny lub powtórzony bój.`);
+                    invalid = true;
+                    return;
+                }
+                liftKeys.add(lift.liftKey);
+
+                if (!Array.isArray(lift.attempts) || lift.attempts.length !== 3) {
+                    errors.push(`${liftLabel}: wymagane są dokładnie trzy podejścia.`);
+                    invalid = true;
+                    return;
+                }
+
+                lift.attempts.forEach((attempt, attemptIndex) => {
+                    if (
+                        !attempt ||
+                        (attempt.weight !== null &&
+                            attempt.weight !== "" &&
+                            (!Number.isFinite(Number(attempt.weight)) || Number(attempt.weight) < 0)) ||
+                        ![null, "success", "failed"].includes(attempt.result ?? null)
+                    ) {
+                        errors.push(`${liftLabel}, podejście ${attemptIndex + 1}: niepoprawny ciężar lub wynik.`);
+                        invalid = true;
+                    }
+                });
+            });
+
+            if (!invalid) validCompetitions.push(competition);
+        });
+
         if (errors.length) {
             const shown = errors.slice(0, 15).join("\n");
             const more = errors.length > 15
@@ -5145,20 +5706,32 @@ importJsonFile.addEventListener("change", async () => {
                 existing.name.trim().toLowerCase() === item.title.trim().toLowerCase()
             )
         );
+        const duplicateCompetitions = validCompetitions.filter(item =>
+            competitions.some(existing =>
+                existing.date === item.date &&
+                existing.name.trim().toLowerCase() === item.title.trim().toLowerCase()
+            )
+        );
 
         let toImport = validWorkouts;
+        let competitionsToImport = validCompetitions;
 
-        if (duplicates.length) {
+        if (duplicates.length || duplicateCompetitions.length) {
             const duplicateKeys = new Set(
                 duplicates.map(item =>
-                    `${item.date}|${item.title.trim().toLowerCase()}`
+                    `workout|${item.date}|${item.title.trim().toLowerCase()}`
+                )
+            );
+            duplicateCompetitions.forEach(item =>
+                duplicateKeys.add(
+                    `competition|${item.date}|${item.title.trim().toLowerCase()}`
                 )
             );
 
             const skipDuplicates = confirm(
-                `Znaleziono ${duplicates.length} treningów z datą i nazwą ` +
-                `pasującą do istniejącej historii.\n\n` +
-                `OK — pomiń treningi o tej samej dacie i nazwie.\n` +
+                `Znaleziono ${duplicates.length} treningów i ${duplicateCompetitions.length} zawodów ` +
+                `z datą i nazwą pasującą do istniejącej historii.\n\n` +
+                `OK — pomiń powtórzone wpisy.\n` +
                 `Anuluj — przerwij import.`
             );
 
@@ -5166,13 +5739,18 @@ importJsonFile.addEventListener("change", async () => {
 
             toImport = validWorkouts.filter(item =>
                 !duplicateKeys.has(
-                    `${item.date}|${item.title.trim().toLowerCase()}`
+                    `workout|${item.date}|${item.title.trim().toLowerCase()}`
+                )
+            );
+            competitionsToImport = validCompetitions.filter(item =>
+                !duplicateKeys.has(
+                    `competition|${item.date}|${item.title.trim().toLowerCase()}`
                 )
             );
         }
 
-        if (!toImport.length) {
-            alert("Nie ma nowych treningów do zaimportowania.");
+        if (!toImport.length && !competitionsToImport.length) {
+            alert("Nie ma nowych wpisów do zaimportowania.");
             return;
         }
 
@@ -5188,6 +5766,7 @@ importJsonFile.addEventListener("change", async () => {
         const confirmed = confirm(
             `Podsumowanie importu:\n\n` +
             `Treningi: ${toImport.length}\n` +
+            `Zawody: ${competitionsToImport.length}\n` +
             `Ćwiczenia w treningach: ${toImport.reduce((n, w) => n + w.exercises.length, 0)}\n` +
             `Serie: ${setCount}\n\n` +
             `Czy zapisać te dane w Supabase?`
@@ -5317,8 +5896,68 @@ importJsonFile.addEventListener("change", async () => {
             }
         }
 
+        let importedCompetitionsCount = 0;
+
+        for (const item of competitionsToImport) {
+            let competitionId = null;
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from("competitions")
+                    .insert({
+                        user_id: user.id,
+                        name: item.title.trim(),
+                        competition_date: item.date
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                competitionId = data.id;
+
+                const liftRows = item.lifts.map(lift => ({
+                    competition_id: competitionId,
+                    lift_key: lift.liftKey,
+                    attempts: lift.attempts.map(attempt => ({
+                        weight: attempt.weight === null || attempt.weight === ""
+                            ? null
+                            : Number(attempt.weight),
+                        result: attempt.result ?? null
+                    }))
+                }));
+
+                const { error: liftsError } = await supabaseClient
+                    .from("competition_lifts")
+                    .insert(liftRows);
+
+                if (liftsError) throw liftsError;
+                importedCompetitionsCount++;
+            } catch (error) {
+                console.error("Błąd importu zawodów:", error);
+
+                if (competitionId !== null) {
+                    const { error: cleanupError } = await supabaseClient
+                        .from("competitions")
+                        .delete()
+                        .eq("id", competitionId);
+
+                    if (cleanupError) {
+                        console.error("Nie udało się wycofać częściowego importu zawodów:", cleanupError);
+                    }
+                }
+
+                throw new Error(
+                    `Import zatrzymał się przy zawodach "${item.title}". ` +
+                    `Zapisano wcześniej ${importedCompetitionsCount} zawodów i ${importedCount} treningów. Szczegóły w konsoli.`
+                );
+            }
+        }
+
         await loadDataFromSupabase();
-        alert(`Import zakończony. Dodano ${importedCount} treningów.`);
+        alert(
+            `Import zakończony. Dodano ${importedCount} treningów i ` +
+            `${importedCompetitionsCount} zawodów.`
+        );
     } catch (error) {
         console.error("Import JSON:", error);
         alert(error.message || "Nie udało się zaimportować pliku.");

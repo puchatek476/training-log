@@ -111,6 +111,14 @@
                         Najrzadziej wykonywane
                     </button>
 
+                    <button
+                        type="button"
+                        id="addCompetitionButton"
+                        class="button button-secondary"
+                    >
+                        Dodaj zawody
+                    </button>
+
                     <input
                         type="file"
                         id="importJsonFile"
@@ -138,7 +146,7 @@
 
                 <div>
                     <p class="eyebrow">HISTORIA</p>
-                    <h2>Twoje treningi</h2>
+                    <h2>Twoje wpisy</h2>
                 </div>
 
                 <button id="addWorkoutButton" class="button button-primary">
@@ -156,7 +164,7 @@
                     <input
                         id="searchInput"
                         type="search"
-                        placeholder="Szukaj treningu lub ćwiczenia..."
+                        placeholder="Szukaj wpisu lub ćwiczenia..."
                         autocomplete="off"
                     >
                 </label>
@@ -594,7 +602,78 @@
 </section>
 
 
+<section id="competitionView" class="hidden">
+
+    <header class="active-header">
+        <button id="backFromCompetitionButton" class="button button-primary">
+            ← Historia
+        </button>
+
+        <div class="active-title">
+            <h1 id="activeCompetitionName">Zawody</h1>
+            <p id="activeCompetitionDate" class="muted"></p>
+        </div>
+
+        <div></div>
+    </header>
+
+    <main class="active-main">
+        <div id="competitionLifts"></div>
+
+        <section class="competition-total-card" aria-live="polite">
+            <span>Łączny total</span>
+            <strong id="competitionTotal">0 kg</strong>
+        </section>
+
+        <div class="competition-save-actions">
+            <p id="competitionSaveStatus" class="muted" aria-live="polite"></p>
+            <button id="saveCompetitionButton" class="button button-primary" type="button">
+                Zapisz wyniki
+            </button>
+        </div>
+    </main>
+
+</section>
+
+
 </div>
+
+
+<dialog id="competitionDialog" class="dialog">
+    <form id="competitionForm">
+        <div class="dialog-heading">
+            <div>
+                <p class="eyebrow">NOWY WPIS</p>
+                <h2>Dodaj zawody</h2>
+            </div>
+            <button type="button" class="icon-button" id="closeCompetitionDialogButton" aria-label="Zamknij">
+                ×
+            </button>
+        </div>
+
+        <label class="form-field">
+            Nazwa zawodów
+            <input id="competitionName" type="text" maxlength="80" value="Zawody" required>
+        </label>
+
+        <label class="form-field">
+            Data
+            <input id="competitionDate" type="text" placeholder="dd/mm/rrrr" maxlength="10" inputmode="numeric" required>
+        </label>
+
+        <fieldset class="competition-lift-options">
+            <legend>Boje, w których startujesz</legend>
+            <label><input type="checkbox" name="competitionLift" value="squat" checked> Przysiad</label>
+            <label><input type="checkbox" name="competitionLift" value="bench" checked> Wyciskanie</label>
+            <label><input type="checkbox" name="competitionLift" value="deadlift" checked> Martwy ciąg</label>
+        </fieldset>
+
+        <div class="dialog-actions">
+            <button type="button" id="cancelCompetitionButton" class="button button-secondary">Anuluj</button>
+            <button type="submit" id="createCompetitionButton" class="button button-primary">Utwórz</button>
+        </div>
+    </form>
+</dialog>
 
 
 <dialog id="editWorkoutDialog">
