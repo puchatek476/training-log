@@ -319,6 +319,45 @@ font-weight: 600;
 
 }
 
+.date-quick-actions {
+display: flex;
+flex-wrap: wrap;
+gap: 8px;
+}
+
+.date-quick-actions .button {
+padding: 8px 12px;
+border-radius: 9px;
+font-size: 13px;
+}
+
+.settings-section {
+padding: 20px;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: var(--radius);
+}
+
+.settings-checkbox {
+display: flex;
+align-items: center;
+gap: 12px;
+color: var(--text);
+font-weight: 700;
+cursor: pointer;
+}
+
+.settings-checkbox input {
+width: 20px;
+height: 20px;
+margin: 0;
+accent-color: var(--accent);
+}
+
+.settings-section p {
+margin: 12px 0 0;
+}
+
 select,
 input,
 textarea {
@@ -455,6 +494,19 @@ color: var(--muted);
 font-size: 9px;
 font-weight: 800;
 letter-spacing: 0.06em;
+}
+
+.relative-date-badge {
+display: inline-block;
+padding: 3px 6px;
+border-radius: 6px;
+background: var(--accent);
+color: var(--surface);
+font-size: 9px;
+font-weight: 800;
+letter-spacing: 0.06em;
+text-transform: uppercase;
+vertical-align: middle;
 }
 
 .weekly-day-heading p {
@@ -908,6 +960,10 @@ gap: 0 8px;
 .workout-date {
 color: var(--muted);
 font-size: 13px;
+}
+
+.workout-date .relative-date-badge {
+margin-left: 10px;
 }
 
 .workout-exercises {

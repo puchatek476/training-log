@@ -113,6 +113,14 @@
 
                     <button
                         type="button"
+                        id="settingsViewButton"
+                        class="button button-secondary"
+                    >
+                        Ustawienia
+                    </button>
+
+                    <button
+                        type="button"
                         id="addCompetitionButton"
                         class="button button-secondary"
                     >
@@ -482,6 +490,36 @@
 
 </section>
 
+<!-- USTAWIENIA -->
+
+<section id="settingsView" class="hidden">
+
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">PREFERENCJE</p>
+            <h1>Ustawienia</h1>
+        </div>
+
+        <button
+            id="backToHistoryFromSettingsButton"
+            class="button button-secondary"
+        >
+            ← Historia
+        </button>
+    </header>
+
+    <main>
+        <section class="workouts-section settings-section">
+            <label class="settings-checkbox">
+                <input id="groupIdenticalSetsSetting" type="checkbox">
+                <span>Grupuj identyczne serie</span>
+            </label>
+            <p id="settingsStatus" class="muted" role="status" aria-live="polite"></p>
+        </section>
+    </main>
+
+</section>
+
 <!-- AKTYWNY TRENING -->
 <section id="activeWorkoutView" class="active-workout-view hidden">
 
@@ -799,9 +837,9 @@
     </label>
 
 
-    <label class="form-field">
+    <div class="form-field">
 
-        Data
+        <label for="workoutDate">Data</label>
 
         <input
             id="workoutDate"
@@ -812,7 +850,13 @@
             inputmode="numeric"
         >
 
-    </label>
+        <div class="date-quick-actions" role="group" aria-label="Ustaw datę treningu">
+            <button type="button" class="button button-secondary" data-workout-date-offset="1">Jutro</button>
+            <button type="button" class="button button-secondary" data-workout-date-offset="2">Pojutrze</button>
+            <button type="button" class="button button-secondary" data-workout-date-offset="3">Za 3 dni</button>
+        </div>
+
+    </div>
 
 
     <div class="dialog-actions">

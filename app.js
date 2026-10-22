@@ -223,6 +223,21 @@ const exercisesView =
 const weeklyView =
     document.querySelector("#weeklyView");
 
+const settingsView =
+    document.querySelector("#settingsView");
+
+const settingsViewButton =
+    document.querySelector("#settingsViewButton");
+
+const backToHistoryFromSettingsButton =
+    document.querySelector("#backToHistoryFromSettingsButton");
+
+const groupIdenticalSetsSetting =
+    document.querySelector("#groupIdenticalSetsSetting");
+
+const settingsStatus =
+    document.querySelector("#settingsStatus");
+
 const weeklyViewButton =
     document.querySelector("#weeklyViewButton");
 
@@ -457,6 +472,8 @@ let activeWorkoutId = null;
 let isWorkoutEditing = false;
 let isExerciseOrderSaving = false;
 let isActiveWorkoutGymEditing = false;
+let groupIdenticalSets = false;
+let currentUserId = null;
 const pendingSetSaveQueues = new Map();
 
 window.addEventListener(
@@ -826,6 +843,23 @@ if (parts.length !== 3) {
 return `${parts[2]}/${parts[1]}/${parts[0]}`;
 
 
+}
+
+function getRelativeDateLabel(dateString) {
+    const [year, month, day] = dateString.split("-").map(Number);
+    const [todayYear, todayMonth, todayDay] = getTodayInternal()
+        .split("-")
+        .map(Number);
+    const daysFromToday = (
+        Date.UTC(year, month - 1, day) -
+        Date.UTC(todayYear, todayMonth - 1, todayDay)
+    ) / 86400000;
+
+    if (daysFromToday === 1) return "Jutro";
+    if (daysFromToday === 2) return "Pojutrze";
+    if (daysFromToday > 2) return `Za ${daysFromToday} dni`;
+
+    return "";
 }
 
 function parseUserDate(value) {
@@ -1583,8 +1617,9 @@ function renderWeeklyWorkoutList() {
             const workoutName = dayWorkouts.length > 1
                 ? `<button type="button" class="weekly-workout-button" data-workout-id="${workout.id}">${name}</button>`
                 : name;
-            const plannedBadge = workout.date > todayKey
-                ? '<span class="weekly-planned-badge">ZAPLANOWANE</span>'
+            const relativeDateLabel = getRelativeDateLabel(workout.date);
+            const plannedBadge = relativeDateLabel
+                ? `<span class="weekly-planned-badge">${escapeHtml(relativeDateLabel)}</span>`
                 : "";
 
             return `
@@ -1993,6 +2028,7 @@ workoutsList.innerHTML =
         }
 
         const workout = entry;
+        const relativeDateLabel = getRelativeDateLabel(workout.date);
 
         const visibleExercises =
             exerciseFilterValue
@@ -2040,6 +2076,7 @@ workoutsList.innerHTML =
 
                         <div class="workout-date">
                             ${formatDate(workout.date)}
+                            ${relativeDateLabel ? `<span class="relative-date-badge">${escapeHtml(relativeDateLabel)}</span>` : ""}
                         </div>
 
                     </div>
@@ -2763,6 +2800,22 @@ function renderExercise(
 
         const groupedSets = [];
 
+        const hasValue = value =>
+            value !== null &&
+            value !== undefined &&
+            String(value).trim() !== "";
+
+        const canGroupSet = set =>
+            hasValue(set.weight) &&
+            hasValue(set.reps) &&
+            Object.entries(set).every(([key, value]) =>
+                ["id", "weight", "reps"].includes(key) || !hasValue(value)
+            );
+
+        const setsHaveSameValues = (first, second) =>
+            Number(first.weight) === Number(second.weight) &&
+            Number(first.reps) === Number(second.reps);
+
         const getNumericWeight = set => {
             if (set.weight === null || set.weight === undefined || String(set.weight).trim() === "") {
                 return null;
@@ -2783,7 +2836,11 @@ function renderExercise(
             const type = set.setType || "";
             const lastGroup = groupedSets[groupedSets.length - 1];
 
-            if (lastGroup && lastGroup.type === type && type !== "") {
+            if (
+                lastGroup &&
+                lastGroup.type === type &&
+                (type !== "" || groupIdenticalSets)
+            ) {
                 lastGroup.items.push({ set, setIndex });
                 return;
             }
@@ -2796,9 +2853,48 @@ function renderExercise(
 
         const setRows =
             groupedSets.map((group) => {
-                const rowsHtml = group.items.map(({ set, setIndex }) => {
+                const itemsToRender = group.items.reduce((items, item) => {
+                    const previous = items[items.length - 1];
+                    if (
+                        groupIdenticalSets &&
+                        previous &&
+                        previous.count &&
+                        canGroupSet(previous.set) &&
+                        canGroupSet(item.set) &&
+                        setsHaveSameValues(previous.set, item.set)
+                    ) {
+                        previous.count += 1;
+                        return items;
+                    }
+
+                    if (
+                        groupIdenticalSets &&
+                        previous &&
+                        !previous.count &&
+                        canGroupSet(previous.set) &&
+                        canGroupSet(item.set) &&
+                        setsHaveSameValues(previous.set, item.set)
+                    ) {
+                        previous.count = 2;
+                        return items;
+                    }
+
+                    items.push({ ...item, count: 0 });
+                    return items;
+                }, []);
+
+                const rowsHtml = itemsToRender.map(({ set, setIndex, count }) => {
                     const numericWeight = getNumericWeight(set);
                     const isMaxWeightSet = maxWeight !== null && numericWeight !== null && Math.abs(numericWeight - maxWeight) < 1e-9;
+                    const lastTwoDigits = count % 100;
+                    const countNoun = count % 10 >= 2 &&
+                        count % 10 <= 4 &&
+                        (lastTwoDigits < 12 || lastTwoDigits > 14)
+                        ? "serie"
+                        : "serii";
+                    const countLabel = count > 1
+                        ? `${count} ${countNoun}`
+                        : `${setIndex + 1}.`;
 
                     const primaryBits = [];
                     if (set.weight !== "" && set.weight !== null && set.weight !== undefined) {
@@ -2873,7 +2969,7 @@ function renderExercise(
                         <div class="workout-view-set ${isMaxWeightSet ? "workout-view-set--max-weight" : ""}">
 
                             <span class="workout-view-set-number">
-                                ${setIndex + 1}.
+                                ${countLabel}
                             </span>
 
                             <div class="workout-view-set-values">
@@ -4274,6 +4370,22 @@ workoutName.focus();
 
 }
 
+document
+    .querySelectorAll("[data-workout-date-offset]")
+    .forEach(button => {
+        button.addEventListener("click", () => {
+            const daysToAdd = Number(button.dataset.workoutDateOffset);
+            const date = new Date();
+            date.setDate(date.getDate() + daysToAdd);
+
+            workoutDate.value = [
+                String(date.getDate()).padStart(2, "0"),
+                String(date.getMonth() + 1).padStart(2, "0"),
+                date.getFullYear()
+            ].join("/");
+        });
+    });
+
 /* SUBMIT NEW WORKOUT */
 
 workoutForm.addEventListener(
@@ -4631,6 +4743,62 @@ exerciseForm.addEventListener(
 
 /* NAVIGATION */
 
+settingsViewButton.addEventListener(
+    "click",
+    () => {
+        historyView.classList.add("hidden");
+        exercisesView.classList.add("hidden");
+        exerciseConfigView.classList.add("hidden");
+        gymsView.classList.add("hidden");
+        weeklyView.classList.add("hidden");
+        statisticsView.classList.add("hidden");
+        rareExercisesView.classList.add("hidden");
+        settingsView.classList.remove("hidden");
+    }
+);
+
+backToHistoryFromSettingsButton.addEventListener(
+    "click",
+    () => {
+        settingsView.classList.add("hidden");
+        historyView.classList.remove("hidden");
+    }
+);
+
+groupIdenticalSetsSetting.addEventListener(
+    "change",
+    async () => {
+        if (!currentUserId) {
+            groupIdenticalSetsSetting.checked = false;
+            settingsStatus.textContent = "Zaloguj się ponownie, aby zapisać ustawienie.";
+            return;
+        }
+
+        const nextValue = groupIdenticalSetsSetting.checked;
+        groupIdenticalSetsSetting.disabled = true;
+        settingsStatus.textContent = "Zapisywanie ustawienia...";
+
+        const { error } = await supabaseClient
+            .from("user_settings")
+            .upsert({
+                user_id: currentUserId,
+                group_identical_sets: nextValue
+            }, { onConflict: "user_id" });
+
+        if (error) {
+            console.error("Błąd zapisu ustawień użytkownika:", error);
+            groupIdenticalSetsSetting.checked = groupIdenticalSets;
+            settingsStatus.textContent = "Nie udało się zapisać ustawienia.";
+            alert("Nie udało się zapisać ustawienia. Sprawdź, czy tabela user_settings została utworzona w Supabase.");
+        } else {
+            groupIdenticalSets = nextValue;
+            settingsStatus.textContent = "Ustawienie zapisane.";
+        }
+
+        groupIdenticalSetsSetting.disabled = false;
+    }
+);
+
 backToHistoryButton.addEventListener(
 "click",
 () => {
@@ -4900,6 +5068,28 @@ async function fetchDataFromSupabase() {
 
 
     if (!user) return;
+
+    currentUserId = user.id;
+
+    const {
+        data: userSettings,
+        error: userSettingsError
+    } = await supabaseClient
+        .from("user_settings")
+        .select("group_identical_sets")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (userSettingsError) {
+        console.error("Błąd pobierania ustawień użytkownika:", userSettingsError);
+        settingsStatus.textContent =
+            "Nie udało się pobrać ustawień. Sprawdź, czy tabela user_settings została utworzona w Supabase.";
+        groupIdenticalSets = false;
+    } else {
+        groupIdenticalSets = userSettings?.group_identical_sets === true;
+        settingsStatus.textContent = "";
+    }
+    groupIdenticalSetsSetting.checked = groupIdenticalSets;
 
 
     /*
