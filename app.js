@@ -223,6 +223,18 @@ const exercisesView =
 const weeklyView =
     document.querySelector("#weeklyView");
 
+const recordsView =
+    document.querySelector("#recordsView");
+
+const recordsViewButton =
+    document.querySelector("#recordsViewButton");
+
+const backToHistoryFromRecordsButton =
+    document.querySelector("#backToHistoryFromRecordsButton");
+
+const recordsTableBody =
+    document.querySelector("#recordsTableBody");
+
 const settingsView =
     document.querySelector("#settingsView");
 
@@ -1673,6 +1685,132 @@ function renderWeeklyWorkoutList() {
                 openWorkout(Number(button.dataset.workoutId))
             );
         });
+}
+
+function renderSbdRecords() {
+    const lifts = [
+        { key: "squat", label: "Przysiad" },
+        { key: "bench press", label: "Wyciskanie" },
+        { key: "deadlift", label: "Martwy ciąg" }
+    ];
+
+    if (isWorkoutsLoading) {
+        recordsTableBody.innerHTML = `
+            <tr>
+                <td class="records-empty" colspan="4">Pobieranie treningów...</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const records = new Map(
+        lifts.map(lift => [lift.key, new Map()])
+    );
+    const todayKey = getTodayInternal();
+
+    workouts.forEach(workout => {
+        if (workout.date > todayKey) return;
+
+        workout.exercises.forEach(exercise => {
+            const liftKey = getSbdExerciseBaseName(exercise.name);
+            if (!liftKey) return;
+
+            (exercise.sets || []).forEach(set => {
+                const reps = Number(set.reps);
+                const weight = Number(set.weight);
+
+                if (
+                    ![1, 2, 3].includes(reps) ||
+                    set.reps === "" ||
+                    set.reps === null ||
+                    set.reps === undefined ||
+                    set.weight === "" ||
+                    set.weight === null ||
+                    set.weight === undefined ||
+                    !Number.isFinite(weight) ||
+                    weight < 0
+                ) {
+                    return;
+                }
+
+                const liftRecords = records.get(liftKey);
+                const currentRecord = liftRecords.get(reps);
+                if (!currentRecord || weight > currentRecord.weight) {
+                    liftRecords.set(reps, {
+                        weight,
+                        rpe: set.rpe,
+                        date: workout.date
+                    });
+                }
+            });
+        });
+    });
+
+    competitions.forEach(competition => {
+        if (competition.date > todayKey) return;
+
+        competition.lifts.forEach(lift => {
+            const liftKey = lift.liftKey === "bench" ? "bench press" : lift.liftKey;
+            const liftRecords = records.get(liftKey);
+            if (!liftRecords) return;
+
+            (lift.attempts || []).forEach(attempt => {
+                const weight = Number(attempt.weight);
+                if (
+                    attempt.result !== "success" ||
+                    attempt.weight === "" ||
+                    attempt.weight === null ||
+                    attempt.weight === undefined ||
+                    !Number.isFinite(weight) ||
+                    weight < 0
+                ) {
+                    return;
+                }
+
+                const currentRecord = liftRecords.get(1);
+                if (!currentRecord || weight > currentRecord.weight) {
+                    liftRecords.set(1, {
+                        weight,
+                        rpe: null,
+                        date: competition.date
+                    });
+                }
+            });
+        });
+    });
+
+    recordsTableBody.innerHTML = lifts.map(lift => {
+        const liftRecords = records.get(lift.key);
+        const cells = [1, 2, 3].map(reps => {
+            const record = liftRecords.get(reps);
+            if (!record) {
+                return '<td class="records-empty">—</td>';
+            }
+
+            const rpe = record.rpe !== null &&
+                record.rpe !== undefined &&
+                String(record.rpe).trim() !== ""
+                ? `<span>RPE ${escapeHtml(record.rpe)}</span>`
+                : "";
+
+            return `
+                <td>
+                    <div class="record-result">
+                        <strong>${escapeHtml(record.weight)} kg</strong>
+                        ${rpe}
+                        <time datetime="${escapeHtml(record.date)}">${escapeHtml(formatDate(record.date))}</time>
+                    </div>
+                </td>
+            `;
+        }).join("");
+
+        return `
+            <tr>
+                <th scope="row">${lift.label}</th>
+                ${cells}
+            </tr>
+        `;
+    }).join("");
 }
 
     function renderRareExercises() {
@@ -4743,6 +4881,31 @@ exerciseForm.addEventListener(
 
 /* NAVIGATION */
 
+recordsViewButton.addEventListener(
+    "click",
+    () => {
+        historyView.classList.add("hidden");
+        exercisesView.classList.add("hidden");
+        exerciseConfigView.classList.add("hidden");
+        gymsView.classList.add("hidden");
+        weeklyView.classList.add("hidden");
+        statisticsView.classList.add("hidden");
+        rareExercisesView.classList.add("hidden");
+        settingsView.classList.add("hidden");
+        recordsView.classList.remove("hidden");
+
+        renderSbdRecords();
+    }
+);
+
+backToHistoryFromRecordsButton.addEventListener(
+    "click",
+    () => {
+        recordsView.classList.add("hidden");
+        historyView.classList.remove("hidden");
+    }
+);
+
 settingsViewButton.addEventListener(
     "click",
     () => {
@@ -5493,6 +5656,10 @@ if (!statisticsView.classList.contains("hidden")) {
 
 if (!rareExercisesView.classList.contains("hidden")) {
     renderRareExercises();
+}
+
+if (!recordsView.classList.contains("hidden")) {
+    renderSbdRecords();
 }
 
 }

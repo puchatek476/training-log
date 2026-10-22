@@ -567,6 +567,67 @@ outline-offset: 2px;
 padding-bottom: 48px;
 }
 
+.records-section {
+padding-bottom: 48px;
+}
+
+.records-table-scroll {
+overflow-x: auto;
+border: 1px solid var(--border);
+border-radius: var(--radius);
+background: var(--surface);
+}
+
+.records-table {
+width: 100%;
+min-width: 620px;
+border-collapse: collapse;
+text-align: left;
+}
+
+.records-table th,
+.records-table td {
+padding: 14px 16px;
+border-bottom: 1px solid var(--border);
+}
+
+.records-table thead th {
+color: var(--muted);
+font-size: 13px;
+font-weight: 600;
+white-space: nowrap;
+}
+
+.records-table tbody tr:last-child > * {
+border-bottom: 0;
+}
+
+.records-table tbody th {
+font-weight: 700;
+white-space: nowrap;
+}
+
+.record-result {
+display: grid;
+gap: 4px;
+min-width: 100px;
+}
+
+.record-result strong {
+font-size: 16px;
+}
+
+.record-result span,
+.record-result time,
+.records-empty {
+color: var(--muted);
+font-size: 12px;
+}
+
+.records-empty {
+text-align: center;
+}
+
 .rare-exercises-section {
 padding-bottom: 48px;
 }
@@ -1860,6 +1921,11 @@ background: rgba(247, 120, 101, 0.04);
         justify-self: stretch;
     }
 
+    #recordsViewButton {
+        grid-column: 2;
+        grid-row: 3;
+    }
+
     #exercisesTabButton {
         grid-column: 2;
         grid-row: 2;
@@ -1867,11 +1933,6 @@ background: rgba(247, 120, 101, 0.04);
 
     #weeklyViewButton {
         grid-column: 1;
-        grid-row: 3;
-    }
-
-    #gymsTabButton {
-        grid-column: 2;
         grid-row: 3;
     }
 
