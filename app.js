@@ -867,6 +867,7 @@ function getRelativeDateLabel(dateString) {
         Date.UTC(todayYear, todayMonth - 1, todayDay)
     ) / 86400000;
 
+    if (daysFromToday === 0) return "Dzisiaj";
     if (daysFromToday === 1) return "Jutro";
     if (daysFromToday === 2) return "Pojutrze";
     if (daysFromToday > 2) return `Za ${daysFromToday} dni`;
@@ -2989,6 +2990,7 @@ function renderExercise(
             });
         });
 
+        let hasAggregatedSets = false;
         const setRows =
             groupedSets.map((group) => {
                 const itemsToRender = group.items.reduce((items, item) => {
@@ -3020,6 +3022,9 @@ function renderExercise(
                     items.push({ ...item, count: 0 });
                     return items;
                 }, []);
+                if (itemsToRender.some(({ count }) => count > 1)) {
+                    hasAggregatedSets = true;
+                }
 
                 const rowsHtml = itemsToRender.map(({ set, setIndex, count }) => {
                     const numericWeight = getNumericWeight(set);
@@ -3030,9 +3035,6 @@ function renderExercise(
                         (lastTwoDigits < 12 || lastTwoDigits > 14)
                         ? "serie"
                         : "serii";
-                    const countLabel = count > 1
-                        ? `${count} ${countNoun}`
-                        : `${setIndex + 1}.`;
 
                     const primaryBits = [];
                     if (set.weight !== "" && set.weight !== null && set.weight !== undefined) {
@@ -3107,7 +3109,8 @@ function renderExercise(
                         <div class="workout-view-set ${isMaxWeightSet ? "workout-view-set--max-weight" : ""}">
 
                             <span class="workout-view-set-number">
-                                ${countLabel}
+                                ${setIndex + 1}.
+                                ${count > 1 ? `<span class="workout-view-set-count">${count} ${countNoun}</span>` : ""}
                             </span>
 
                             <div class="workout-view-set-values">
@@ -3155,7 +3158,7 @@ function renderExercise(
 
 
         return `
-            <section class="workout-view-exercise">
+            <section class="workout-view-exercise ${hasAggregatedSets ? "workout-view-exercise--grouped" : ""}">
 
                 <h2
                     class="exercise-name-trigger"

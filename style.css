@@ -2020,11 +2020,11 @@ background: rgba(247, 120, 101, 0.04);
     align-items: stretch;
     gap: 10px;
     width: 100%;
-    margin-bottom: 10px;
+    margin-bottom: 0;
 }
 
 .workout-view-group + .workout-view-group {
-    margin-top: 8px;
+    margin-top: 3px;
 }
 
 .workout-view-group-items {
@@ -2050,15 +2050,35 @@ background: rgba(247, 120, 101, 0.04);
 }
 
 .workout-view-set + .workout-view-set {
-    margin-top: 8px;
+    margin-top: 3px;
 }
 
 .workout-view-set-number {
+    position: relative;
     width: 24px;
     color: var(--muted);
     font-size: 13px;
     padding-top: 2px;
     flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.workout-view-exercise--grouped .workout-view-set-number {
+    width: 90px;
+}
+
+.workout-view-set-count {
+    position: absolute;
+    left: calc(50% + 8px);
+    transform: translateX(-50%);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.workout-view-set--max-weight .workout-view-set-count {
+    font-weight: 900;
 }
 
 .workout-view-set-values {
@@ -2112,11 +2132,11 @@ background: rgba(247, 120, 101, 0.04);
     align-items: stretch;
     gap: 6px;
     width: 100%;
-    margin-bottom: 4px;
+    margin-bottom: 0;
 }
 
 .exercise-history-compact .workout-view-group + .workout-view-group {
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 .exercise-history-compact .workout-view-set {
@@ -2140,6 +2160,20 @@ background: rgba(247, 120, 101, 0.04);
     font-size: 10px;
     padding-top: 1px;
     flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.exercise-history-compact .workout-view-exercise--grouped .workout-view-set-number {
+    width: 78px;
+}
+
+.exercise-history-compact .workout-view-set-count {
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.exercise-history-compact .workout-view-set--max-weight .workout-view-set-count {
+    font-weight: 800;
 }
 
 .exercise-history-compact .workout-view-set-values {
