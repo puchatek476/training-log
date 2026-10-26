@@ -452,6 +452,7 @@ const saveWorkoutButton =
 
 const workoutName = document.querySelector("#workoutName");
 const workoutDate = document.querySelector("#workoutDate");
+const workoutDatePicker = document.querySelector("#workoutDatePicker");
 const activeWorkoutNotes = document.querySelector("#activeWorkoutNotes");
 const activeWorkoutNotesPreview =
     document.querySelector("#activeWorkoutNotesPreview");
@@ -914,6 +915,24 @@ return `${year}-${month}-${day}`;
 
 
 }
+
+function syncDatePickerFromText(textInput, datePicker) {
+    datePicker.value = parseUserDate(textInput.value) || "";
+}
+
+function bindDatePicker(textInput, datePicker) {
+    textInput.addEventListener("input", () =>
+        syncDatePickerFromText(textInput, datePicker)
+    );
+
+    datePicker.addEventListener("change", () => {
+        if (datePicker.value) {
+            textInput.value = formatDate(datePicker.value);
+        }
+    });
+}
+
+bindDatePicker(workoutDate, workoutDatePicker);
 
 function populateGymSelect() {
 
@@ -4503,6 +4522,7 @@ workoutDate.value =
     formatDate(
         getTodayInternal()
     );
+syncDatePickerFromText(workoutDate, workoutDatePicker);
 
 workoutDialog.showModal();
 
@@ -4524,6 +4544,7 @@ document
                 String(date.getMonth() + 1).padStart(2, "0"),
                 date.getFullYear()
             ].join("/");
+            syncDatePickerFromText(workoutDate, workoutDatePicker);
         });
     });
 

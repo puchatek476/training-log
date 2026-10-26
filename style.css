@@ -331,6 +331,40 @@ border-radius: 9px;
 font-size: 13px;
 }
 
+.date-input-control {
+position: relative;
+}
+
+.date-input-control > input[type="text"] {
+padding-right: 52px;
+}
+
+.date-picker-native {
+position: absolute;
+top: 0;
+right: 0;
+width: 44px;
+height: 100%;
+padding: 0;
+opacity: 0;
+cursor: pointer;
+}
+
+.date-picker-icon {
+position: absolute;
+top: 50%;
+right: 13px;
+display: flex;
+color: var(--muted);
+pointer-events: none;
+transform: translateY(-50%);
+}
+
+.date-picker-icon svg {
+width: 18px;
+height: 18px;
+}
+
 .settings-section {
 padding: 20px;
 background: var(--surface);
