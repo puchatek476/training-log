@@ -235,6 +235,9 @@ const backToHistoryFromRecordsButton =
 const recordsTableBody =
     document.querySelector("#recordsTableBody");
 
+const recordsProjectionResults =
+    document.querySelector("#recordsProjectionResults");
+
 const settingsView =
     document.querySelector("#settingsView");
 
@@ -271,8 +274,13 @@ const backToHistoryFromRareExercisesButton =
 const rareExercisesWorkoutCount =
     document.querySelector("#rareExercisesWorkoutCount");
 
+const rareExercisesSettingsStatus =
+    document.querySelector("#rareExercisesSettingsStatus");
+
 const rareExercisesList =
     document.querySelector("#rareExercisesList");
+
+let rareExercisesSettingsUserId = null;
 
 const addCompetitionButton =
     document.querySelector("#addCompetitionButton");
@@ -1707,6 +1715,49 @@ function renderWeeklyWorkoutList() {
         });
 }
 
+const RPE_10_PERCENTAGES = [
+    null,
+    1,
+    0.955,
+    0.922,
+    0.892,
+    0.863,
+    0.837,
+    0.811,
+    0.786,
+    0.762,
+    0.739,
+    0.716,
+    0.694
+];
+
+function estimateOneRepMax(weight, reps, rpe) {
+    if (!Number.isFinite(rpe) || rpe < 6 || rpe > 10) return null;
+
+    const equivalentReps = reps + (10 - rpe);
+    if (equivalentReps < 1 || equivalentReps > 12) return null;
+
+    const lowerReps = Math.floor(equivalentReps);
+    const upperReps = Math.ceil(equivalentReps);
+    const lowerPercentage = RPE_10_PERCENTAGES[lowerReps];
+    const upperPercentage = RPE_10_PERCENTAGES[upperReps];
+    if (lowerPercentage === null || upperPercentage === null) return null;
+
+    const percentage = lowerReps === upperReps
+        ? lowerPercentage
+        : lowerPercentage +
+            (upperPercentage - lowerPercentage) *
+            (equivalentReps - lowerReps);
+
+    return weight / percentage;
+}
+
+function formatProjectedWeight(weight) {
+    return weight.toLocaleString("pl-PL", {
+        maximumFractionDigits: 1
+    });
+}
+
 function renderSbdRecords() {
     const lifts = [
         { key: "squat", label: "Przysiad" },
@@ -1715,6 +1766,8 @@ function renderSbdRecords() {
     ];
 
     if (isWorkoutsLoading) {
+        recordsProjectionResults.innerHTML =
+            '<p class="records-empty">Pobieranie treningów...</p>';
         recordsTableBody.innerHTML = `
             <tr>
                 <td class="records-empty" colspan="4">Pobieranie treningów...</td>
@@ -1725,6 +1778,9 @@ function renderSbdRecords() {
 
     const records = new Map(
         lifts.map(lift => [lift.key, new Map()])
+    );
+    const projectedMaxes = new Map(
+        lifts.map(lift => [lift.key, null])
     );
     const todayKey = getTodayInternal();
 
@@ -1738,6 +1794,43 @@ function renderSbdRecords() {
             (exercise.sets || []).forEach(set => {
                 const reps = Number(set.reps);
                 const weight = Number(set.weight);
+
+                if (
+                    Number.isInteger(reps) &&
+                    reps > 0 &&
+                    reps <= 15 &&
+                    set.reps !== "" &&
+                    set.reps !== null &&
+                    set.reps !== undefined &&
+                    set.weight !== "" &&
+                    set.weight !== null &&
+                    set.weight !== undefined &&
+                    Number.isFinite(weight) &&
+                    weight > 0
+                ) {
+                    const enteredRpe =
+                        set.rpe === "" ||
+                        set.rpe === null ||
+                        set.rpe === undefined
+                            ? 10
+                            : Number(set.rpe);
+                    const estimatedMax = estimateOneRepMax(
+                        weight,
+                        reps,
+                        enteredRpe
+                    );
+                    const currentEstimate = projectedMaxes.get(liftKey);
+
+                    if (
+                        estimatedMax !== null &&
+                        (!currentEstimate || estimatedMax > currentEstimate.weight)
+                    ) {
+                        projectedMaxes.set(liftKey, {
+                            weight: estimatedMax,
+                            date: workout.date
+                        });
+                    }
+                }
 
                 if (
                     ![1, 2, 3].includes(reps) ||
@@ -1787,6 +1880,14 @@ function renderSbdRecords() {
                     return;
                 }
 
+                const currentEstimate = projectedMaxes.get(liftKey);
+                if (!currentEstimate || weight > currentEstimate.weight) {
+                    projectedMaxes.set(liftKey, {
+                        weight,
+                        date: competition.date
+                    });
+                }
+
                 const currentRecord = liftRecords.get(1);
                 if (!currentRecord || weight > currentRecord.weight) {
                     liftRecords.set(1, {
@@ -1798,6 +1899,40 @@ function renderSbdRecords() {
             });
         });
     });
+
+    const estimatedLiftRows = lifts.map(lift => {
+        const estimate = projectedMaxes.get(lift.key);
+        return `
+            <div class="records-projection-lift">
+                <span>${lift.label}</span>
+                <strong>${estimate ? `${formatProjectedWeight(estimate.weight)} kg` : "—"}</strong>
+            </div>
+        `;
+    }).join("");
+    const missingEstimates = lifts.filter(
+        lift => !projectedMaxes.get(lift.key)
+    );
+    const projectedTotal = missingEstimates.length
+        ? "—"
+        : formatProjectedWeight(
+            lifts.reduce(
+                (total, lift) => total + projectedMaxes.get(lift.key).weight,
+                0
+            )
+        );
+
+    recordsProjectionResults.innerHTML = `
+        <div class="records-projection-lifts">
+            ${estimatedLiftRows}
+        </div>
+        <div class="records-projection-total">
+            <span>Total SBD</span>
+            <strong>${projectedTotal}${projectedTotal === "—" ? "" : " kg"}</strong>
+        </div>
+        ${missingEstimates.length
+            ? `<p class="records-projection-missing">Brak danych dla: ${missingEstimates.map(lift => lift.label).join(", ")}.</p>`
+            : ""}
+    `;
 
     recordsTableBody.innerHTML = lifts.map(lift => {
         const liftRecords = records.get(lift.key);
@@ -1839,6 +1974,37 @@ function renderSbdRecords() {
                 <li class="muted" role="status">Pobieranie treningów...</li>
             `;
             return;
+        }
+
+        const userId = currentUserId;
+        if (
+            userId &&
+            rareExercisesSettingsUserId !== userId
+        ) {
+            rareExercisesSettingsUserId = userId;
+            rareExercisesSettingsStatus.textContent = "";
+
+            try {
+                const savedCount = localStorage.getItem(
+                    `training-log-rare-exercises-workout-count:${userId}`
+                );
+                const parsedCount = Number(savedCount);
+
+                rareExercisesWorkoutCount.value =
+                    savedCount !== null &&
+                    Number.isInteger(parsedCount) &&
+                    parsedCount > 0
+                        ? String(parsedCount)
+                        : "10";
+            } catch (error) {
+                console.error(
+                    "Błąd odczytu liczby treningów dla rzadkich ćwiczeń:",
+                    error
+                );
+                rareExercisesWorkoutCount.value = "10";
+                rareExercisesSettingsStatus.textContent =
+                    "Nie udało się odczytać zapisanego ustawienia.";
+            }
         }
 
         const requestedCount = Number.parseInt(rareExercisesWorkoutCount.value, 10);
@@ -5089,7 +5255,31 @@ backToHistoryFromRareExercisesButton.addEventListener(
 
 rareExercisesWorkoutCount.addEventListener(
     "input",
-    renderRareExercises
+    () => {
+        const count = Number(rareExercisesWorkoutCount.value);
+        if (
+            currentUserId &&
+            Number.isInteger(count) &&
+            count > 0
+        ) {
+            rareExercisesSettingsStatus.textContent = "";
+            try {
+                localStorage.setItem(
+                    `training-log-rare-exercises-workout-count:${currentUserId}`,
+                    String(count)
+                );
+            } catch (error) {
+                console.error(
+                    "Błąd zapisu liczby treningów dla rzadkich ćwiczeń:",
+                    error
+                );
+                rareExercisesSettingsStatus.textContent =
+                    "Nie udało się zapisać ustawienia.";
+            }
+        }
+
+        renderRareExercises();
+    }
 );
 
 exercisesTabButton.addEventListener(

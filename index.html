@@ -263,6 +263,7 @@
                         value="10"
                     >
                 </label>
+                <p id="rareExercisesSettingsStatus" class="muted" role="status"></p>
             </div>
             <ol id="rareExercisesList" class="rare-exercises-list"></ol>
         </section>
@@ -290,6 +291,14 @@
 
     <main>
         <section class="workouts-section records-section">
+            <section class="records-projection" aria-labelledby="recordsProjectionTitle">
+                <h2 id="recordsProjectionTitle">Prognozowany total</h2>
+                <p class="muted">
+                    Szacowane 1RM na podstawie najlepszych serii. Serie bez podanego RPE liczone są jako RPE 10.
+                </p>
+                <div id="recordsProjectionResults" class="records-projection-results"></div>
+            </section>
+
             <div class="records-table-scroll">
                 <table class="records-table">
                     <thead>

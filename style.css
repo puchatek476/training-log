@@ -605,6 +605,69 @@ padding-bottom: 48px;
 padding-bottom: 48px;
 }
 
+.records-projection {
+margin-bottom: 20px;
+padding: 20px;
+border: 1px solid var(--border);
+border-radius: var(--radius);
+background: var(--surface);
+}
+
+.records-projection h2 {
+margin-bottom: 8px;
+}
+
+.records-projection > p {
+margin-bottom: 18px;
+}
+
+.records-projection-results {
+display: flex;
+flex-wrap: wrap;
+align-items: stretch;
+gap: 16px;
+}
+
+.records-projection-lifts {
+display: grid;
+grid-template-columns: repeat(3, minmax(100px, 1fr));
+gap: 12px;
+flex: 1 1 420px;
+}
+
+.records-projection-lift,
+.records-projection-total {
+display: grid;
+align-content: center;
+gap: 6px;
+padding: 14px;
+border-radius: 12px;
+background: var(--surface-2);
+}
+
+.records-projection-lift span,
+.records-projection-total span {
+color: var(--muted);
+font-size: 13px;
+}
+
+.records-projection-lift strong,
+.records-projection-total strong {
+font-size: 20px;
+}
+
+.records-projection-total {
+min-width: 180px;
+border: 1px solid var(--accent);
+}
+
+.records-projection-missing {
+align-self: center;
+margin: 0;
+color: var(--muted);
+font-size: 13px;
+}
+
 .records-table-scroll {
 overflow-x: auto;
 border: 1px solid var(--border);
@@ -660,6 +723,16 @@ font-size: 12px;
 
 .records-empty {
 text-align: center;
+}
+
+@media (max-width: 600px) {
+.records-projection-lifts {
+grid-template-columns: 1fr;
+}
+
+.records-projection-total {
+width: 100%;
+}
 }
 
 .rare-exercises-section {
