@@ -173,6 +173,18 @@ font-size: 28px;
 color: var(--accent);
 }
 
+.brand-title {
+display: flex;
+align-items: baseline;
+gap: 8px;
+}
+
+.brand-title small {
+color: var(--muted);
+font-size: 12px;
+font-weight: 600;
+}
+
 .header-badge {
 width: 42px;
 height: 42px;
