@@ -649,39 +649,7 @@ editWorkoutButton.addEventListener(
             visibleExerciseTop = lastVisibleExercise.top;
         }
 
-        isWorkoutEditing =
-            !isWorkoutEditing;
-
-        if (!isWorkoutEditing) {
-            isActiveWorkoutGymEditing = false;
-        }
-
-        if (isWorkoutEditing) {
-
-            editWorkoutButton.textContent =
-                "Zakończ edycję";
-
-            addExerciseButton.classList.remove(
-                "hidden"
-            );
-
-            document.body.classList.add(
-                "editing-workout"
-            );
-
-        } else {
-
-            editWorkoutButton.textContent =
-                "Edytuj";
-
-            addExerciseButton.classList.add(
-                "hidden"
-            );
-
-            document.body.classList.remove(
-                "editing-workout"
-            );
-        }
+        setWorkoutEditing(!isWorkoutEditing);
 
         renderActiveWorkout();
 
@@ -697,6 +665,25 @@ editWorkoutButton.addEventListener(
         }
     }
 );
+
+function setWorkoutEditing(isEditing) {
+    isWorkoutEditing = isEditing;
+
+    if (!isWorkoutEditing) {
+        isActiveWorkoutGymEditing = false;
+    }
+
+    editWorkoutButton.textContent =
+        isWorkoutEditing ? "Zakończ edycję" : "Edytuj";
+    addExerciseButton.classList.toggle(
+        "hidden",
+        !isWorkoutEditing
+    );
+    document.body.classList.toggle(
+        "editing-workout",
+        isWorkoutEditing
+    );
+}
 
 cancelEditWorkoutButton.addEventListener(
     "click",
@@ -1205,16 +1192,72 @@ function populateExerciseSelect() {
 
     exerciseSelect.innerHTML = "";
 
-    getExercisesAlphabetically().forEach(exercise => {
+    const exerciseUsageCounts = new Map();
 
-        const option = document.createElement("option");
+    const recentWorkouts = [...workouts]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 25);
 
-        option.value = exercise.name;
-        option.textContent = exercise.name;
+    recentWorkouts.forEach(workout => {
+        (workout.exercises || []).forEach(workoutExercise => {
+            const exerciseName =
+                String(workoutExercise.name || "").trim().toLocaleLowerCase();
 
-        exerciseSelect.appendChild(option);
-
+            if (exerciseName) {
+                exerciseUsageCounts.set(
+                    exerciseName,
+                    (exerciseUsageCounts.get(exerciseName) || 0) + 1
+                );
+            }
+        });
     });
+
+    const alphabeticallySortedExercises =
+        getExercisesAlphabetically();
+    const popularExercises = alphabeticallySortedExercises
+        .filter(exercise =>
+            exerciseUsageCounts.has(
+                exercise.name.trim().toLocaleLowerCase()
+            )
+        )
+        .sort((a, b) => {
+            const aCount =
+                exerciseUsageCounts.get(a.name.trim().toLocaleLowerCase());
+            const bCount =
+                exerciseUsageCounts.get(b.name.trim().toLocaleLowerCase());
+
+            return bCount - aCount || a.name.localeCompare(b.name, "pl");
+        })
+        .slice(0, 10);
+    const appendExerciseOptions = (parent, exerciseList) => {
+        exerciseList.forEach(exercise => {
+
+            const option = document.createElement("option");
+
+            option.value = exercise.name;
+            option.textContent = exercise.name;
+
+            parent.appendChild(option);
+
+        });
+    };
+
+    if (popularExercises.length) {
+        const popularGroup = document.createElement("optgroup");
+        popularGroup.label = "Najczęściej wybierane";
+        appendExerciseOptions(popularGroup, popularExercises);
+        exerciseSelect.appendChild(popularGroup);
+    }
+
+    if (alphabeticallySortedExercises.length) {
+        const allExercisesGroup = document.createElement("optgroup");
+        allExercisesGroup.label = "Wszystkie ćwiczenia";
+        appendExerciseOptions(
+            allExercisesGroup,
+            alphabeticallySortedExercises
+        );
+        exerciseSelect.appendChild(allExercisesGroup);
+    }
 
 }
 
@@ -1731,17 +1774,27 @@ const RPE_10_PERCENTAGES = [
     0.694
 ];
 
+const MAX_ESTIMATED_REPS = 19;
+
+function getRpe10Percentage(reps) {
+    if (reps <= RPE_10_PERCENTAGES.length - 1) {
+        return RPE_10_PERCENTAGES[reps];
+    }
+
+    // Extend the chart above 12 reps with the Brzycki formula.
+    return (37 - reps) / 36;
+}
+
 function estimateOneRepMax(weight, reps, rpe) {
     if (!Number.isFinite(rpe) || rpe < 6 || rpe > 10) return null;
 
     const equivalentReps = reps + (10 - rpe);
-    if (equivalentReps < 1 || equivalentReps > 12) return null;
+    if (equivalentReps < 1 || equivalentReps > MAX_ESTIMATED_REPS) return null;
 
     const lowerReps = Math.floor(equivalentReps);
     const upperReps = Math.ceil(equivalentReps);
-    const lowerPercentage = RPE_10_PERCENTAGES[lowerReps];
-    const upperPercentage = RPE_10_PERCENTAGES[upperReps];
-    if (lowerPercentage === null || upperPercentage === null) return null;
+    const lowerPercentage = getRpe10Percentage(lowerReps);
+    const upperPercentage = getRpe10Percentage(upperReps);
 
     const percentage = lowerReps === upperReps
         ? lowerPercentage
@@ -2471,20 +2524,8 @@ function openWorkout(id, startEditing = false) {
 
     activeWorkoutId = id;
 
-    isWorkoutEditing = Boolean(startEditing);
+    setWorkoutEditing(Boolean(startEditing));
     isActiveWorkoutGymEditing = false;
-
-    if (isWorkoutEditing) {
-        editWorkoutButton.textContent =
-            "Zakończ edycję";
-        addExerciseButton.classList.remove("hidden");
-        document.body.classList.add("editing-workout");
-    } else {
-        addExerciseButton.classList.add("hidden");
-        editWorkoutButton.textContent =
-            "Edytuj";
-        document.body.classList.remove("editing-workout");
-    }
 
     const workout =
         workouts.find(
@@ -2531,11 +2572,6 @@ function openWorkout(id, startEditing = false) {
         left: 0,
         behavior: "auto"
     });
-
-    addExerciseButton.classList.toggle(
-        "hidden",
-        !isWorkoutEditing
-    );
 
 }
 
@@ -2715,7 +2751,7 @@ function renderActiveWorkout() {
 
 if (!workout.exercises.length) {
 
-    activeExercises.innerHTML = `
+    activeExercises.innerHTML = isWorkoutEditing ? `
         <div class="workout-card">
 
             <h3>Brak ćwiczeń</h3>
@@ -2725,7 +2761,30 @@ if (!workout.exercises.length) {
             </p>
 
         </div>
+    ` : `
+        <button
+            type="button"
+            class="workout-card workout-empty-state"
+            aria-label="Edytuj trening i dodaj pierwsze ćwiczenie"
+        >
+            <h3>Brak ćwiczeń</h3>
+
+            <p class="muted">
+                Dodaj pierwsze ćwiczenie do treningu.
+            </p>
+        </button>
     `;
+
+    const emptyWorkoutButton =
+        activeExercises.querySelector(".workout-empty-state");
+
+    if (emptyWorkoutButton) {
+        emptyWorkoutButton.addEventListener("click", () => {
+            setWorkoutEditing(true);
+            renderActiveWorkout();
+            addExercise();
+        });
+    }
 
     return;
 }

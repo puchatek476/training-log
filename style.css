@@ -940,6 +940,13 @@ transition:
 
 }
 
+.workout-empty-state {
+display: block;
+width: 100%;
+color: var(--text);
+text-align: left;
+}
+
 .workout-card:hover {
 border-color: var(--accent);
 transform: translateY(-1px);
