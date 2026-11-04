@@ -1271,10 +1271,7 @@ getExercisesAlphabetically().forEach(exercise => {
 
 /* EXERCISE SELECT */
 
-function populateExerciseSelect() {
-
-    exerciseSelect.innerHTML = "";
-
+function getPopularExercises(exerciseList) {
     const exerciseUsageCounts = new Map();
 
     const recentWorkouts = [...workouts]
@@ -1295,9 +1292,7 @@ function populateExerciseSelect() {
         });
     });
 
-    const alphabeticallySortedExercises =
-        getExercisesAlphabetically();
-    const popularExercises = alphabeticallySortedExercises
+    return exerciseList
         .filter(exercise =>
             exerciseUsageCounts.has(
                 exercise.name.trim().toLocaleLowerCase()
@@ -1312,6 +1307,16 @@ function populateExerciseSelect() {
             return bCount - aCount || a.name.localeCompare(b.name, "pl");
         })
         .slice(0, 10);
+}
+
+function populateExerciseSelect() {
+
+    exerciseSelect.innerHTML = "";
+
+    const alphabeticallySortedExercises =
+        getExercisesAlphabetically();
+    const popularExercises =
+        getPopularExercises(alphabeticallySortedExercises);
     const appendExerciseOptions = (parent, exerciseList) => {
         exerciseList.forEach(exercise => {
 
@@ -5561,6 +5566,8 @@ function renderTrainingPlanWorkout() {
             exercise.name.trim().toLowerCase()
         )
     );
+    const popularCatalogExercises =
+        getPopularExercises(catalogExercises);
 
     trainingPlanExercisePicker.innerHTML = `
         <h3>Dodaj ćwiczenie do planu</h3>
@@ -5585,9 +5592,20 @@ function renderTrainingPlanWorkout() {
                 Wybierz ćwiczenie z katalogu
                 <select data-plan-catalog-select required>
                     <option value="">Wybierz ćwiczenie</option>
-                    ${catalogExercises.map(exercise =>
-                        `<option value="${escapeHtml(exercise.name)}">${escapeHtml(exercise.name)}</option>`
-                    ).join("")}
+                    ${popularCatalogExercises.length
+                        ? `<optgroup label="Najczęściej wybierane">
+                            ${popularCatalogExercises.map(exercise =>
+                                `<option value="${escapeHtml(exercise.name)}">${escapeHtml(exercise.name)}</option>`
+                            ).join("")}
+                        </optgroup>`
+                        : ""}
+                    ${catalogExercises.length
+                        ? `<optgroup label="Wszystkie ćwiczenia">
+                            ${catalogExercises.map(exercise =>
+                                `<option value="${escapeHtml(exercise.name)}">${escapeHtml(exercise.name)}</option>`
+                            ).join("")}
+                        </optgroup>`
+                        : ""}
                 </select>
             </label>
             <button type="submit" class="button button-secondary">Dodaj do planu</button>
