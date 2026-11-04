@@ -1953,7 +1953,14 @@ background: rgba(247, 120, 101, 0.04);
 
 }
 
+#trainingPlanView {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
 .training-plan-section {
+    min-width: 0;
     padding-bottom: 48px;
 }
 
