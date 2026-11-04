@@ -11,12 +11,43 @@
 
 --accent: #f77865;
 --accent-dark: #df604e;
+--plan-accent: #60a5fa;
+--plan-accent-soft: rgba(59, 130, 246, 0.1);
+--plan-border: rgba(96, 165, 250, 0.55);
 
 --danger: #ef5350;
 
 --radius: 16px;
 
 
+}
+
+.exercise-planned-sets-help {
+    margin: 0 0 7px;
+    color: var(--plan-accent);
+    font-size: 11px;
+}
+
+.button-secondary.workout-plan-action {
+    margin-top: 10px;
+    border-color: var(--plan-border);
+    background: var(--plan-accent-soft);
+    color: var(--plan-accent);
+}
+
+.workout-plan-action:hover,
+.workout-plan-action:focus-visible {
+    border-color: var(--plan-accent);
+    background: rgba(59, 130, 246, 0.18);
+}
+
+.exercise-set-editor-heading {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 * {
@@ -1454,6 +1485,71 @@ color: var(--danger);
     text-transform: uppercase;
 }
 
+.exercise-set-planning-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.exercise-set-planning-layout.has-planned-sets {
+    grid-template-columns: minmax(0, 1fr) minmax(170px, 220px);
+}
+
+.exercise-set-editor {
+    min-width: 0;
+}
+
+.exercise-set-editor .set-fields-scroll {
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.exercise-planned-sets {
+    padding: 10px 12px;
+    border: 1px solid var(--plan-border);
+    border-radius: 10px;
+    background: var(--plan-accent-soft);
+}
+
+.exercise-planned-sets[data-open-training-plan] {
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.exercise-planned-sets[data-open-training-plan]:hover,
+.exercise-planned-sets[data-open-training-plan]:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.exercise-planned-sets h3 {
+    margin: 0 0 5px;
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.exercise-planned-sets ol {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+.exercise-planned-set-number {
+    display: inline-block;
+    min-width: 20px;
+    color: var(--muted);
+}
+
+.workout-view-exercise > .exercise-planned-sets {
+    margin-top: 10px;
+}
+
 .set-header-label-mobile {
     display: none;
 }
@@ -1855,6 +1951,289 @@ background: rgba(247, 120, 101, 0.04);
         width: 100%;
     }
 
+}
+
+.training-plan-section {
+    padding-bottom: 48px;
+}
+
+.training-plan-mode-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--plan-border);
+    border-left: 4px solid var(--plan-accent);
+    border-radius: 10px;
+    background: var(--plan-accent-soft);
+    color: var(--text);
+}
+
+.training-plan-mode-banner strong,
+.training-plan-mode-label {
+    color: var(--plan-accent);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.training-plan-mode-banner span {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.training-plan-status-message {
+    min-height: 1.25em;
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.training-plan-view-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 20px 0;
+}
+
+.training-plan-view-heading h2 {
+    margin: 0;
+}
+
+.training-plan-workout-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.training-plan-workout-tile {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+}
+
+.training-plan-workout-tile:hover,
+.training-plan-workout-tile:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.training-plan-workout-tile-date,
+.training-plan-workout-tile-meta {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.training-plan-workout-tile strong {
+    overflow-wrap: anywhere;
+}
+
+.training-plan-selected-workout-heading {
+    flex: 1;
+    text-align: center;
+}
+
+.training-plan-selected-workout-heading h2 {
+    margin: 0;
+}
+
+.training-plan-exercise-picker {
+    display: grid;
+    gap: 10px;
+    margin: 18px 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.training-plan-exercise-picker h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.training-plan-exercise-picker-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.training-plan-catalog-exercise-form {
+    display: flex;
+    align-items: end;
+    gap: 10px;
+    margin-top: 2px;
+}
+
+.training-plan-catalog-exercise-form .form-field {
+    flex: 1;
+    min-width: 0;
+}
+
+.training-plan-selected-exercises {
+    display: grid;
+    gap: 12px;
+}
+
+.training-plan-exercise {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--plan-border);
+    border-radius: var(--radius);
+    background: linear-gradient(145deg, var(--plan-accent-soft), var(--surface) 55%);
+}
+
+.training-plan-exercise-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.training-plan-exercise-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.training-plan-exercise-heading h3 {
+    margin: 4px 0 0;
+    font-size: 15px;
+}
+
+.training-plan-mode-label {
+    display: inline-block;
+    margin-bottom: 2px;
+}
+
+.training-plan-exercise .set-header {
+    color: var(--plan-accent);
+}
+
+.training-plan-exercise .set-row:not(.set-header) {
+    border-color: rgba(96, 165, 250, 0.18);
+}
+
+.training-plan-exercise .set-field {
+    border-color: rgba(96, 165, 250, 0.35);
+}
+
+.training-plan-remove-exercise {
+    padding: 7px 10px;
+    font-size: 12px;
+}
+
+.training-plan-delete-exercise {
+    padding: 7px 10px;
+    border-color: rgba(239, 83, 80, 0.45);
+    color: var(--danger);
+    font-size: 12px;
+}
+
+.training-plan-delete-exercise:hover,
+.training-plan-delete-exercise:focus-visible {
+    border-color: var(--danger);
+    background: rgba(239, 83, 80, 0.12);
+}
+
+.training-plan-set-fields-scroll .set-row {
+    grid-template-columns: 30px repeat(var(--plan-field-count), minmax(0, 90px)) 30px;
+}
+
+.training-plan-add-set {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border: 1px dashed var(--border);
+    color: var(--accent);
+}
+
+.training-plan-empty {
+    margin: 0;
+    padding: 24px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.training-plan-history {
+    display: grid;
+    gap: 10px;
+    margin-top: 28px;
+}
+
+.training-plan-history > h3 {
+    margin: 0;
+    font-size: 17px;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 600px) {
+    .training-plan-workout-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .training-plan-catalog-exercise-form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .training-plan-view-heading {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    @media (max-width: 380px) {
+        .training-plan-workout-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
+    .training-plan-set-fields-scroll .set-row {
+        grid-template-columns: var(--set-mobile-columns);
+    }
+
+    .training-plan-selected-workout-heading {
+        order: -1;
+        flex-basis: 100%;
+        text-align: left;
+    }
+
+    .training-plan-workout-grid {
+        grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    }
+
+    .exercise-set-planning-layout.has-planned-sets {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .exercise-planned-sets {
+        order: -1;
+    }
 }
 #login-screen {
     display: none;

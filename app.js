@@ -42,14 +42,15 @@ const FIELD_DEFINITIONS = {
     weight: {
         label: "Ciężar",
         placeholder: "kg",
-        type: "number",
-        inputmode: "decimal"
+        type: "text",
+        inputmode: "decimal",
+        step: "any"
     },
 
     reps: {
         label: "Powtórzenia",
         placeholder: "Powt.",
-        type: "number",
+        type: "text",
         inputmode: "decimal",
         step: "any"
     },
@@ -57,7 +58,7 @@ const FIELD_DEFINITIONS = {
     rpe: {
         label: "RPE",
         placeholder: "RPE",
-        type: "number",
+        type: "text",
         inputmode: "decimal",
         step: "0.25"
     },
@@ -129,6 +130,14 @@ const NUMERIC_SET_FIELDS = [
     "minutes",
     "load"
 ];
+
+function parseNumericInput(value) {
+    const normalizedValue = String(value).trim().replace(",", ".");
+    if (!normalizedValue) return null;
+
+    const numericValue = Number(normalizedValue);
+    return Number.isFinite(numericValue) ? numericValue : NaN;
+}
 
 const SBD_EXERCISE_NAMES = new Set([
     "squat",
@@ -335,6 +344,80 @@ const cancelCompetitionButton =
 
 const statisticsView =
     document.querySelector("#statisticsView");
+
+const trainingPlanView =
+    document.querySelector("#trainingPlanView");
+
+const trainingPlanViewButton =
+    document.querySelector("#trainingPlanViewButton");
+
+const backToHistoryFromTrainingPlanButton =
+    document.querySelector("#backToHistoryFromTrainingPlanButton");
+
+const trainingPlanStatus =
+    document.querySelector("#trainingPlanStatus");
+
+const trainingPlanWorkoutListView =
+    document.querySelector("#trainingPlanWorkoutListView");
+
+const trainingPlanWorkoutDetailView =
+    document.querySelector("#trainingPlanWorkoutDetailView");
+
+const trainingPlanWorkoutList =
+    document.querySelector("#trainingPlanWorkoutList");
+
+const trainingPlanWorkoutTitle =
+    document.querySelector("#trainingPlanWorkoutTitle");
+
+const trainingPlanWorkoutDate =
+    document.querySelector("#trainingPlanWorkoutDate");
+
+const trainingPlanExercisePicker =
+    document.querySelector("#trainingPlanExercisePicker");
+
+const trainingPlanSelectedExercises =
+    document.querySelector("#trainingPlanSelectedExercises");
+
+const trainingPlanHistory =
+    document.querySelector("#trainingPlanHistory");
+
+const backToTrainingPlanWorkoutsButton =
+    document.querySelector("#backToTrainingPlanWorkoutsButton");
+
+const openSelectedWorkoutButton =
+    document.querySelector("#openSelectedWorkoutButton");
+
+const addTrainingPlanWorkoutButton =
+    document.querySelector("#addTrainingPlanWorkoutButton");
+
+let activeTrainingPlanWorkoutId = null;
+let isCreatingWorkoutFromPlan = false;
+const plannedSetsSaveTimers = new Map();
+const plannedSetsSaveQueues = new Map();
+
+function getTrainingPlanFields(exerciseName) {
+    const exercise = exercises.find(item =>
+        item.name.trim().toLowerCase() === exerciseName.trim().toLowerCase()
+    );
+    const fields = exercise?.fields || ["weight", "reps", "rpe"];
+    return fields.filter(field => FIELD_DEFINITIONS[field]);
+}
+
+function createEmptyPlannedSet(fields) {
+    return Object.fromEntries(fields.map(field => [field, ""]));
+}
+
+function hasPlannedSets(exercise) {
+    const fields = getTrainingPlanFields(exercise.name);
+    return Array.isArray(exercise.plannedSets) &&
+        exercise.plannedSets.some(set =>
+            fields.some(field =>
+                set[field] !== null &&
+                set[field] !== undefined &&
+                String(set[field]).trim() !== ""
+            )
+        );
+}
 
 const statisticsViewButton =
     document.querySelector("#statisticsViewButton");
@@ -2259,6 +2342,32 @@ function renderExerciseWeightChart(exerciseName) {
     `;
 }
 
+function attachTrainingPlanLinks() {
+    activeExercises
+        .querySelectorAll("[data-open-training-plan]")
+        .forEach(note => {
+            note.addEventListener("click", event => {
+                event.stopPropagation();
+                openTrainingPlan(
+                    note.dataset.openTrainingPlan,
+                    note.dataset.planExerciseId
+                );
+            });
+
+            note.addEventListener("keydown", event => {
+                if (note.tagName === "BUTTON") return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                event.stopPropagation();
+                openTrainingPlan(
+                    note.dataset.openTrainingPlan,
+                    note.dataset.planExerciseId
+                );
+            });
+        });
+}
+
+
 function returnToCurrentWorkout() {
 
     if (!returnToWorkoutId) return;
@@ -2429,12 +2538,9 @@ workoutsList.innerHTML =
                 )
                 .join("");
 
-        const matchingExerciseMarkup =
-            exerciseFilterValue
-                ? `<div class="exercise-history-compact">${visibleExercises
-                    .map(exercise => renderExercise(exercise, 0, true))
-                    .join("")}</div>`
-                : "";
+        if (exerciseFilterValue) {
+            return renderWorkoutExerciseHistory(workout, visibleExercises);
+        }
 
         return `
             <article
@@ -2461,15 +2567,11 @@ workoutsList.innerHTML =
                 </div>
 
 
-                ${
-                    exerciseFilterValue
-                        ? matchingExerciseMarkup || "<p class=\"muted\">Brak ćwiczenia w tym treningu.</p>"
-                        : exerciseTags
-                            ? `<div class="workout-exercises">
-                                ${exerciseTags}
-                               </div>`
-                            : ""
-                }
+                ${exerciseTags
+                    ? `<div class="workout-exercises">
+                        ${exerciseTags}
+                       </div>`
+                    : ""}
 
             </article>
         `;
@@ -2513,6 +2615,32 @@ document
 
 }
 
+function renderWorkoutExerciseHistory(workout, matchingExercises) {
+    const relativeDateLabel = getRelativeDateLabel(workout.date);
+
+    return `
+        <article class="workout-card" data-id="${workout.id}">
+            <div class="workout-card-header">
+                <div>
+                    <h3>
+                        <span class="workout-card-title">${escapeHtml(workout.name)}</span>
+                        ${workout.gym ? `<span class="workout-card-gym">${escapeHtml(workout.gym)}</span>` : ""}
+                    </h3>
+                    <div class="workout-date">
+                        ${formatDate(workout.date)}
+                        ${relativeDateLabel ? `<span class="relative-date-badge">${escapeHtml(relativeDateLabel)}</span>` : ""}
+                    </div>
+                </div>
+            </div>
+            <div class="exercise-history-compact">
+                ${matchingExercises.map(exercise =>
+                    renderExercise(exercise, 0, true, false, true)
+                ).join("")}
+            </div>
+        </article>
+    `;
+}
+
 /* OPEN WORKOUT */
 
 function openWorkout(id, startEditing = false) {
@@ -2534,7 +2662,6 @@ function openWorkout(id, startEditing = false) {
         );
 
     if (!workout) return;
-
 
     activeWorkoutName.textContent =
         workout.name;
@@ -2796,7 +2923,9 @@ activeExercises.innerHTML =
             (exercise, exerciseIndex) =>
                 renderExercise(
                     exercise,
-                    exerciseIndex
+                    exerciseIndex,
+                    false,
+                    true
                 )
         )
         .join("");
@@ -2804,6 +2933,7 @@ activeExercises.innerHTML =
 
 attachExerciseEvents();
 attachExerciseHistoryLinks();
+attachTrainingPlanLinks();
 }
 
 
@@ -2864,9 +2994,7 @@ function renderCompetitionDetails(competition) {
                                     Podejście ${index + 1}
                                     <input
                                         class="competition-attempt-input"
-                                        type="number"
-                                        min="0"
-                                        step="0.5"
+                                        type="text"
                                         inputmode="decimal"
                                         placeholder="Ciężar (kg)"
                                         value="${attempt.weight === null || attempt.weight === undefined ? "" : escapeHtml(String(attempt.weight))}"
@@ -2913,8 +3041,8 @@ function updateCompetitionTotal() {
                 ...liftCard.querySelectorAll('.competition-attempt-row[data-result="success"]')
             ]
                 .map(row => row.querySelector("input").value)
-                .filter(value => value !== "" && Number.isFinite(Number(value)))
-                .map(Number);
+                .map(parseNumericInput)
+                .filter(Number.isFinite);
 
             return sum + (successfulWeights.length ? Math.max(...successfulWeights) : 0);
         }, 0);
@@ -3089,7 +3217,7 @@ saveCompetitionButton.addEventListener("click", async () => {
             ...liftCard.querySelectorAll(".competition-attempt-row")
         ].map((row, index) => {
             const value = row.querySelector("input").value.trim();
-            const weight = value === "" ? null : Number(value);
+            const weight = parseNumericInput(value);
 
             if (weight !== null && (!Number.isFinite(weight) || weight < 0)) {
                 invalidAttempt =
@@ -3157,10 +3285,139 @@ saveCompetitionButton.addEventListener("click", async () => {
     }
 });
 
+function renderSetFieldControl(field, set, attributes = "") {
+    const definition = FIELD_DEFINITIONS[field];
+
+    if (!definition) {
+        console.error(`Brak definicji pola serii: ${field}`);
+        return "";
+    }
+
+    if (definition.type === "select") {
+        return `
+            <select class="set-field set-${field}" data-field="${field}" ${attributes}>
+                <option value="">Wybierz</option>
+                ${definition.options.map(option => `
+                    <option value="${escapeHtml(option)}" ${set[field] === option ? "selected" : ""}>
+                        ${escapeHtml(option)}
+                    </option>
+                `).join("")}
+            </select>
+        `;
+    }
+
+    return `
+        <input
+            class="set-field set-${field}"
+            data-field="${field}"
+            ${attributes}
+            type="${definition.type}"
+            inputmode="${definition.inputmode}"
+            ${definition.type === "number" && definition.step ? `step="${definition.step}"` : ""}
+            placeholder="${escapeHtml(definition.placeholder)}"
+            value="${escapeHtml(String(set[field] ?? ""))}"
+        >
+    `;
+}
+
+function renderSetFieldHeaders(fields) {
+    return fields.map(field => {
+        const definition = FIELD_DEFINITIONS[field];
+        if (!definition) {
+            console.error(`Brak definicji pola serii: ${field}`);
+            return "";
+        }
+
+        return `
+            <div class="set-header-${field}">
+                <span class="set-header-label">${escapeHtml(definition.label)}</span>
+                ${field === "reps"
+                    ? '<span class="set-header-label-mobile">Powt.</span>'
+                    : ""}
+            </div>
+        `;
+    }).join("");
+}
+
+function getSetMobileColumns(fields) {
+    return [
+        "32px",
+        ...fields.map(field => {
+            const definition = FIELD_DEFINITIONS[field];
+            if (definition?.type === "select") {
+                if (field === "setType") return "72px";
+                if (field === "deadliftStyle") return "100px";
+                return "96px";
+            }
+            return "56px";
+        }),
+        "28px"
+    ].join(" ");
+}
+
+function renderPlannedSetsNote(exercise, fields, isClickable = false) {
+    const plannedSets = Array.isArray(exercise.plannedSets)
+        ? exercise.plannedSets
+        : [];
+    const visibleSets = plannedSets
+        .map((set, index) => {
+            const hasValue = field =>
+                set[field] !== "" &&
+                set[field] !== null &&
+                set[field] !== undefined;
+            const primary = [];
+
+            if (hasValue("weight")) primary.push(`${escapeHtml(String(set.weight))} kg`);
+            if (hasValue("reps")) primary.push(escapeHtml(String(set.reps)));
+            if (hasValue("rpe")) {
+                primary.push(`@${escapeHtml(String(set.rpe))}`);
+            }
+
+            const secondary = [];
+            if (hasValue("seconds")) secondary.push(`${escapeHtml(String(set.seconds))} s`);
+            if (hasValue("minutes")) secondary.push(`${escapeHtml(String(set.minutes))} min`);
+            if (hasValue("load")) secondary.push(`+${escapeHtml(String(set.load))}`);
+
+            ["band", "setType", "deadliftStyle"].forEach(field => {
+                if (fields.includes(field) && hasValue(field)) {
+                    secondary.push(escapeHtml(String(set[field])));
+                }
+            });
+
+            const primaryText = primary.length > 1 && hasValue("rpe")
+                ? `${primary.slice(0, -1).join(" × ")} ${primary[primary.length - 1]}`
+                : primary.join(" × ");
+            const values = [primaryText, ...secondary].filter(Boolean);
+
+            return { index, values };
+        })
+        .filter(set => set.values.length);
+
+    if (!visibleSets.length) return "";
+
+    const planNavigation = isClickable && activeWorkoutId !== null
+        ? `data-open-training-plan="${escapeHtml(String(activeWorkoutId))}" data-plan-exercise-id="${escapeHtml(String(exercise.id))}" role="button" tabindex="0" aria-label="Otwórz plan dla ${escapeHtml(exercise.name)}"`
+        : "";
+
+    return `
+        <aside class="exercise-planned-sets" ${planNavigation} aria-label="Planowane serie">
+            <h3>Plan na trening</h3>
+            <p class="exercise-planned-sets-help">Cel treningowy · nie są to wykonane serie</p>
+            <ol>
+                ${visibleSets.map(set => `
+                    <li><span class="exercise-planned-set-number">${set.index + 1}.</span> ${set.values.join(" · ")}</li>
+                `).join("")}
+            </ol>
+        </aside>
+    `;
+}
+
 function renderExercise(
     exercise,
     exerciseIndex,
-    highlightMaxWeight = false
+    highlightMaxWeight = false,
+    isActiveWorkoutExercise = false,
+    readOnly = false
 ) {
 
     const sets =
@@ -3176,10 +3433,20 @@ function renderExercise(
         exerciseConfig?.fields ||
         ["weight", "reps", "rpe"];
 
+    const planActionButton = isActiveWorkoutExercise && !hasPlannedSets(exercise)
+        ? `
+            <button
+                type="button"
+                class="button button-secondary workout-plan-action"
+                data-open-training-plan="${escapeHtml(String(activeWorkoutId))}"
+                data-plan-exercise-id="${escapeHtml(String(exercise.id))}"
+            >Przejdź do planowania</button>
+        `
+        : "";
 
     /* PODGLĄD */
 
-    if (!isWorkoutEditing) {
+    if (readOnly || !isWorkoutEditing) {
 
         const groupedSets = [];
 
@@ -3399,6 +3666,11 @@ function renderExercise(
                     </div>
                 `
                 : "";
+        const plannedSetsNote = renderPlannedSetsNote(
+            exercise,
+            fields,
+            isActiveWorkoutExercise
+        );
 
 
         return `
@@ -3415,7 +3687,11 @@ function renderExercise(
 
                 ${setRows}
 
+                ${plannedSetsNote}
+
                 ${notes}
+
+                ${planActionButton}
 
             </section>
         `;
@@ -3440,48 +3716,7 @@ function renderExercise(
                             ${setIndex + 1}
                         </div>
 
-                        ${fields.map(field => {
-
-                            const definition =
-                                FIELD_DEFINITIONS[field];
-
-                            if (definition.type === "select") {
-
-                                return `
-                                    <select
-                                        class="set-field set-${field}"
-                                        data-field="${field}"
-                                    >
-
-                                        <option value="">Wybierz</option>
-
-                                        ${definition.options.map(option => `
-                                            <option
-                                                value="${option}"
-                                                ${set[field] === option ? "selected" : ""}
-                                            >
-                                                ${option}
-                                            </option>
-                                        `).join("")}
-
-                                    </select>
-                                `;
-
-                            }
-
-                            return `
-                                <input
-                                    class="set-field set-${field}"
-                                    data-field="${field}"
-                                    type="${definition.type}"
-                                    inputmode="${definition.inputmode}"
-                                    ${definition.step ? `step="${definition.step}"` : ""}
-                                    placeholder="${definition.placeholder}"
-                                    value="${set[field] ?? ""}"
-                                >
-                            `;
-
-                        }).join("")}
+                        ${fields.map(field => renderSetFieldControl(field, set)).join("")}
 
                         <button
                             type="button"
@@ -3498,40 +3733,13 @@ function renderExercise(
         ).join("");
 
 
-    const headerFields =
-        fields.map(field => {
-            const label = FIELD_DEFINITIONS[field].label;
-
-            return `
-                <div class="set-header-${field}">
-                    <span class="set-header-label">${label}</span>
-                    ${field === "reps"
-                        ? '<span class="set-header-label-mobile">Powt.</span>'
-                        : ""}
-                </div>
-            `;
-
-        }).join("");
-
-    const mobileSetColumns = [
-        "32px",
-        ...fields.map(
-            field => {
-                const definition = FIELD_DEFINITIONS[field];
-
-                if (definition.type === "select") {
-                    if (field === "setType") return "72px";
-                    if (field === "deadliftStyle") return "100px";
-                    return "96px";
-                }
-
-                return "56px";
-            }
-        ),
-        "28px"
-    ].join(" ");
-
-
+    const headerFields = renderSetFieldHeaders(fields);
+    const mobileSetColumns = getSetMobileColumns(fields);
+    const plannedSetsNote = renderPlannedSetsNote(
+        exercise,
+        fields,
+        isActiveWorkoutExercise
+    );
     return `
         <section class="active-exercise">
 
@@ -3581,25 +3789,38 @@ function renderExercise(
                 </button>
 
             </div>
+            <div class="exercise-set-planning-layout ${plannedSetsNote ? "has-planned-sets" : ""}">
+                <div class="exercise-set-editor">
+                    <h3 class="exercise-set-editor-heading">Wykonane serie</h3>
+                    <div
+                        class="set-fields-scroll"
+                        style="--set-mobile-columns: ${mobileSetColumns}"
+                    >
 
-            <div
-                class="set-fields-scroll"
-                style="--set-mobile-columns: ${mobileSetColumns}"
-            >
+                        <div class="set-row set-header">
 
-            <div class="set-row set-header">
+                            <div>SERIA</div>
 
-                <div>SERIA</div>
+                            ${headerFields}
 
-                ${headerFields}
+                            <div></div>
 
-                <div></div>
+                        </div>
 
+                        ${rows}
+
+                    </div>
+                    <button
+                        type="button"
+                        class="add-set-button"
+                        data-exercise-index="${exerciseIndex}"
+                    >
+                        + Dodaj serię
+                    </button>
+                </div>
+                ${plannedSetsNote}
             </div>
-
-            ${rows}
-
-            </div>
+            ${planActionButton}
 
             <div class="exercise-notes">
 
@@ -3617,15 +3838,6 @@ function renderExercise(
                 </label>
 
             </div>
-
-            <button
-                type="button"
-                class="add-set-button"
-                data-exercise-index="${exerciseIndex}"
-            >
-                + Dodaj serię
-            </button>
-
         </section>
     `;
 
@@ -4469,10 +4681,22 @@ async function saveSetInput(event) {
 
     if (!field) return;
 
+    const parsedValue = parseNumericInput(input.value);
+
+    if (
+        NUMERIC_SET_FIELDS.includes(field) &&
+        input.value.trim() !== "" &&
+        !Number.isFinite(parsedValue)
+    ) {
+        alert("Wpisz poprawną liczbę. Możesz użyć przecinka lub kropki.");
+        input.value = set[field] ?? "";
+        return;
+    }
+
     if (
         field === "load" &&
-        input.value !== "" &&
-        !Number.isInteger(Number(input.value))
+        parsedValue !== null &&
+        !Number.isInteger(parsedValue)
     ) {
         alert(
             "Obciążenie musi być liczbą całkowitą."
@@ -4489,8 +4713,8 @@ async function saveSetInput(event) {
 
     const previousValue = set[field];
     const nextValue =
-        NUMERIC_SET_FIELDS.includes(field) && input.value !== ""
-            ? Number(input.value)
+        NUMERIC_SET_FIELDS.includes(field) && input.value.trim() !== ""
+            ? parsedValue
             : input.value;
 
     set[field] = nextValue;
@@ -4738,8 +4962,9 @@ async function moveExercise(exerciseIndex, direction) {
 
 /* NEW WORKOUT */
 
-function openNewWorkoutDialog() {
+function openNewWorkoutDialog(fromTrainingPlan = false) {
 
+isCreatingWorkoutFromPlan = fromTrainingPlan;
 
 workoutForm.reset();
 
@@ -4877,6 +5102,8 @@ workoutForm.addEventListener(
         workouts.push(
             newWorkout
         );
+        const createdFromPlan = isCreatingWorkoutFromPlan;
+        isCreatingWorkoutFromPlan = false;
         saveWorkoutButton.disabled = false;
 
 
@@ -4885,11 +5112,14 @@ workoutForm.addEventListener(
 
         refreshApp();
 
-
-        openWorkout(
-            newWorkout.id,
-            true
-        );
+        if (createdFromPlan) {
+            openTrainingPlan(newWorkout.id);
+        } else {
+            openWorkout(
+                newWorkout.id,
+                true
+            );
+        }
 
     }
 );
@@ -5108,6 +5338,8 @@ exerciseForm.addEventListener(
 
             notes: "",
 
+            plannedSets: [],
+
             sets: [
                 {
                     id:
@@ -5220,9 +5452,7 @@ backToHistoryButton.addEventListener(
         "hidden"
     );
 
-    historyView.classList.remove(
-        "hidden"
-    );
+    historyView.classList.remove("hidden");
 
     activeWorkoutId = null;
 
@@ -5256,6 +5486,642 @@ backToHistoryFromStatisticsButton.addEventListener(
         historyView.classList.remove("hidden");
     }
 );
+
+function renderTrainingPlanWorkoutList() {
+    const orderedWorkouts = [...workouts].sort((a, b) =>
+        b.date.localeCompare(a.date) ||
+        a.name.localeCompare(b.name, "pl")
+    );
+
+    trainingPlanWorkoutList.innerHTML = orderedWorkouts.length
+        ? orderedWorkouts.map(workout => {
+            const plannedExerciseCount = workout.exercises.filter(exercise =>
+                hasPlannedSets(exercise)
+            ).length;
+            const dateLabel = getRelativeDateLabel(workout.date);
+
+            return `
+                <button
+                    type="button"
+                    class="training-plan-workout-tile"
+                    data-select-plan-workout="${escapeHtml(String(workout.id))}"
+                >
+                    <span class="training-plan-workout-tile-date">
+                        ${formatDate(workout.date)}
+                        ${dateLabel ? `<span class="relative-date-badge">${escapeHtml(dateLabel)}</span>` : ""}
+                    </span>
+                    <strong>${escapeHtml(workout.name)}</strong>
+                    <span class="training-plan-workout-tile-meta">
+                        ${workout.exercises.length} ćw.
+                        ${plannedExerciseCount
+                            ? `· ${plannedExerciseCount} w planie`
+                            : ""}
+                    </span>
+                </button>
+            `;
+        }).join("")
+        : `<p class="training-plan-empty">Brak treningów. Dodaj trening, aby zaplanować ćwiczenia.</p>`;
+}
+
+function renderTrainingPlanWorkout() {
+    const workout = workouts.find(item =>
+        String(item.id) === String(activeTrainingPlanWorkoutId)
+    );
+    if (!workout) {
+        activeTrainingPlanWorkoutId = null;
+        trainingPlanWorkoutListView.classList.remove("hidden");
+        trainingPlanWorkoutDetailView.classList.add("hidden");
+        renderTrainingPlanWorkoutList();
+        return;
+    }
+
+    trainingPlanWorkoutListView.classList.add("hidden");
+    trainingPlanWorkoutDetailView.classList.remove("hidden");
+    trainingPlanWorkoutTitle.textContent = workout.name;
+    trainingPlanWorkoutDate.textContent = formatDate(workout.date);
+    openSelectedWorkoutButton.dataset.workoutId = String(workout.id);
+    trainingPlanSelectedExercises.dataset.workoutId = String(workout.id);
+
+    const selectedExercises = workout.exercises.filter(exercise =>
+        Array.isArray(exercise.plannedSets) && exercise.plannedSets.length > 0
+    );
+    const selectedIds = new Set(
+        selectedExercises.map(exercise => String(exercise.id))
+    );
+    const plannedNames = new Set(
+        selectedExercises.map(exercise => exercise.name.trim().toLowerCase())
+    );
+    const availableExercises = workout.exercises.filter(exercise =>
+        !selectedIds.has(String(exercise.id))
+    );
+    const catalogExercises = getExercisesAlphabetically().filter(exercise =>
+        !plannedNames.has(exercise.name.trim().toLowerCase()) &&
+        !workout.exercises.some(workoutExercise =>
+            workoutExercise.name.trim().toLowerCase() ===
+            exercise.name.trim().toLowerCase()
+        )
+    );
+
+    trainingPlanExercisePicker.innerHTML = `
+        <h3>Dodaj ćwiczenie do planu</h3>
+        <div class="training-plan-exercise-picker-list">
+            ${availableExercises.map(exercise => `
+                <button
+                    type="button"
+                    class="button button-secondary"
+                    data-add-plan-exercise="${escapeHtml(String(exercise.id))}"
+                >+ ${escapeHtml(exercise.name)}</button>
+            `).join("")}
+            <button
+                type="button"
+                class="button button-secondary training-plan-add-other"
+                data-toggle-plan-catalog
+                aria-expanded="false"
+                ${catalogExercises.length ? "" : "disabled"}
+            >+ Inne</button>
+        </div>
+        <form class="training-plan-catalog-exercise-form hidden" data-plan-catalog-form>
+            <label class="form-field">
+                Wybierz ćwiczenie z katalogu
+                <select data-plan-catalog-select required>
+                    <option value="">Wybierz ćwiczenie</option>
+                    ${catalogExercises.map(exercise =>
+                        `<option value="${escapeHtml(exercise.name)}">${escapeHtml(exercise.name)}</option>`
+                    ).join("")}
+                </select>
+            </label>
+            <button type="submit" class="button button-secondary">Dodaj do planu</button>
+        </form>
+        ${availableExercises.length || catalogExercises.length
+            ? ""
+            : `<p class="training-plan-empty">Wszystkie ćwiczenia z katalogu są już w planie.</p>`}
+    `;
+
+    trainingPlanSelectedExercises.innerHTML = selectedExercises.length
+        ? selectedExercises.map(exercise =>
+            renderTrainingPlanExercise(exercise)
+        ).join("")
+        : `<p class="training-plan-empty">Wybierz ćwiczenia powyżej, aby dodać do nich planowane serie.</p>`;
+
+    const selectedExerciseNames = new Set(
+        selectedExercises.map(exercise => exercise.name.trim().toLowerCase())
+    );
+    const previousWorkouts = workouts
+        .filter(previousWorkout =>
+            previousWorkout.date < workout.date &&
+            previousWorkout.exercises.some(exercise =>
+                selectedExerciseNames.has(exercise.name.trim().toLowerCase())
+            )
+        )
+        .sort((a, b) =>
+            b.date.localeCompare(a.date) ||
+            b.name.localeCompare(a.name, "pl")
+        );
+
+    trainingPlanHistory.innerHTML = selectedExerciseNames.size
+        ? previousWorkouts.length
+            ? previousWorkouts.map(previousWorkout =>
+                renderWorkoutExerciseHistory(
+                    previousWorkout,
+                    previousWorkout.exercises.filter(exercise =>
+                        selectedExerciseNames.has(exercise.name.trim().toLowerCase())
+                    )
+                )
+            ).join("")
+            : `<p class="training-plan-empty">Brak wcześniejszych treningów z wybranymi ćwiczeniami.</p>`
+        : `<p class="training-plan-empty">Wybierz ćwiczenia, aby zobaczyć ich wcześniejsze treningi.</p>`;
+}
+
+function renderTrainingPlanExercise(exercise) {
+    const fields = getTrainingPlanFields(exercise.name);
+    const savedSets = Array.isArray(exercise.plannedSets)
+        ? exercise.plannedSets
+        : [];
+    const sets = savedSets;
+    const mobileColumns = getSetMobileColumns(fields);
+
+    return `
+        <section class="training-plan-exercise">
+            <header class="training-plan-exercise-heading">
+                <div>
+                    <span class="training-plan-mode-label">PLANOWANE SERIE</span>
+                    <h3>${escapeHtml(exercise.name)}</h3>
+                </div>
+                <div class="training-plan-exercise-actions">
+                    <button
+                        type="button"
+                        class="button button-secondary training-plan-remove-exercise"
+                        data-remove-plan-exercise="${escapeHtml(String(exercise.id))}"
+                    >Usuń z planu</button>
+                    <button
+                        type="button"
+                        class="button button-secondary training-plan-delete-exercise"
+                        data-delete-workout-exercise="${escapeHtml(String(exercise.id))}"
+                    >Usuń z treningu</button>
+                </div>
+            </header>
+            <div
+                class="set-fields-scroll training-plan-set-fields-scroll"
+                style="--set-mobile-columns: ${mobileColumns}; --plan-field-count: ${fields.length}"
+            >
+                <div class="set-row set-header">
+                    <div>PLAN</div>
+                    ${renderSetFieldHeaders(fields)}
+                    <div><span class="visually-hidden">Akcje</span></div>
+                </div>
+                ${sets.map((set, setIndex) => `
+                    <div class="set-row">
+                        <div class="set-number">${setIndex + 1}</div>
+                        ${fields.map(field => renderSetFieldControl(
+                            field,
+                            set,
+                            `data-plan-exercise-id="${escapeHtml(String(exercise.id))}" data-plan-set-index="${setIndex}" data-plan-field="${field}" aria-label="${escapeHtml(FIELD_DEFINITIONS[field].label)} seria ${setIndex + 1} dla ${escapeHtml(exercise.name)}"`
+                        )).join("")}
+                        <button
+                            type="button"
+                            class="remove-set"
+                            data-remove-planned-set="${setIndex}"
+                            data-plan-exercise-id="${escapeHtml(String(exercise.id))}"
+                            aria-label="Usuń planowaną serię ${setIndex + 1}"
+                        >×</button>
+                    </div>
+                `).join("")}
+            </div>
+            <button
+                type="button"
+                class="add-set-button training-plan-add-set"
+                data-add-planned-set
+                data-plan-exercise-id="${escapeHtml(String(exercise.id))}"
+            >+ Dodaj serię</button>
+        </section>
+    `;
+}
+
+function findWorkoutExerciseById(exerciseId) {
+    return workouts
+        .flatMap(workout => workout.exercises)
+        .find(exercise => String(exercise.id) === String(exerciseId));
+}
+
+function savePlannedSets(exercise) {
+    if (!exercise?.id) {
+        trainingPlanStatus.textContent =
+            "Nie można zapisać planu: wpis ćwiczenia nie ma identyfikatora.";
+        return;
+    }
+
+    clearTimeout(plannedSetsSaveTimers.get(exercise.id));
+    plannedSetsSaveTimers.set(exercise.id, setTimeout(async () => {
+        plannedSetsSaveTimers.delete(exercise.id);
+        const previousSave = plannedSetsSaveQueues.get(exercise.id) || Promise.resolve();
+        const savePromise = previousSave.catch(() => {}).then(async () => {
+            const plannedSets = (exercise.plannedSets || []).filter(set =>
+                getTrainingPlanFields(exercise.name).some(field =>
+                    set[field] !== null &&
+                    set[field] !== undefined &&
+                    String(set[field]).trim() !== ""
+                )
+            );
+            const rows = [];
+            for (const set of plannedSets) {
+                const data = { ...set };
+                delete data.id;
+                for (const field of NUMERIC_SET_FIELDS) {
+                    if (data[field] !== "" && data[field] !== null && data[field] !== undefined) {
+                        const numericValue = parseNumericInput(data[field]);
+                        if (!Number.isFinite(numericValue)) {
+                            throw new Error(`Nieprawidłowa wartość liczbowa w polu ${field}.`);
+                        }
+                        data[field] = numericValue;
+                    }
+                }
+
+                rows.push({
+                    workout_exercise_id: exercise.id,
+                    set_order: rows.length,
+                    data
+                });
+            }
+
+            if (rows.length) {
+                const { error } = await supabaseClient
+                    .from("planned_sets")
+                    .upsert(rows, {
+                        onConflict: "workout_exercise_id,set_order"
+                    });
+                if (error) throw error;
+            }
+
+            const { error: deleteError } = await supabaseClient
+                .from("planned_sets")
+                .delete()
+                .eq("workout_exercise_id", exercise.id)
+                .gte("set_order", rows.length);
+            if (deleteError) throw deleteError;
+        });
+        plannedSetsSaveQueues.set(exercise.id, savePromise);
+        savePromise.then(() => {
+            if (plannedSetsSaveQueues.get(exercise.id) === savePromise) {
+                plannedSetsSaveQueues.delete(exercise.id);
+                trainingPlanStatus.textContent = "Planowane serie zapisane w Supabase.";
+            }
+        }, error => {
+            if (plannedSetsSaveQueues.get(exercise.id) === savePromise) {
+                plannedSetsSaveQueues.delete(exercise.id);
+            }
+            console.error("Błąd zapisu planowanych serii:", error);
+            trainingPlanStatus.textContent =
+                error?.code === "42P01" ||
+                (error?.code === "PGRST205" && error.message?.includes("planned_sets"))
+                    ? "Brak tabeli planned_sets w bazie. Zastosuj migrację Supabase."
+                    : "Nie udało się zapisać planowanych serii. Spróbuj ponownie.";
+        });
+    }, 400));
+}
+
+function openTrainingPlan(workoutId = null, exerciseId = null) {
+    historyView.classList.add("hidden");
+    activeWorkoutView.classList.add("hidden");
+    exercisesView.classList.add("hidden");
+    exerciseConfigView.classList.add("hidden");
+    gymsView.classList.add("hidden");
+    weeklyView.classList.add("hidden");
+    statisticsView.classList.add("hidden");
+    rareExercisesView.classList.add("hidden");
+    settingsView.classList.add("hidden");
+    recordsView.classList.add("hidden");
+    competitionView.classList.add("hidden");
+    trainingPlanView.classList.remove("hidden");
+    document.querySelector("#headerMenu").open = false;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
+    trainingPlanStatus.textContent = "";
+    activeTrainingPlanWorkoutId = null;
+    trainingPlanWorkoutDetailView.classList.add("hidden");
+    trainingPlanWorkoutListView.classList.remove("hidden");
+    renderTrainingPlanWorkoutList();
+    if (workoutId !== null) {
+        const workout = workouts.find(item =>
+            String(item.id) === String(workoutId)
+        );
+        const exercise = workout?.exercises.find(item =>
+            String(item.id) === String(exerciseId)
+        );
+        if (exercise && !hasPlannedSets(exercise)) {
+            exercise.plannedSets = [
+                createEmptyPlannedSet(getTrainingPlanFields(exercise.name))
+            ];
+            savePlannedSets(exercise);
+        }
+        openTrainingPlanWorkout(workoutId);
+    }
+}
+
+trainingPlanViewButton.addEventListener("click", () => {
+    openTrainingPlan();
+});
+
+addTrainingPlanWorkoutButton.addEventListener("click", () => {
+    openNewWorkoutDialog(true);
+});
+
+backToHistoryFromTrainingPlanButton.addEventListener("click", () => {
+    trainingPlanView.classList.add("hidden");
+    historyView.classList.remove("hidden");
+});
+
+function openTrainingPlanWorkout(workoutId) {
+    const workout = workouts.find(item =>
+        String(item.id) === String(workoutId)
+    );
+    if (!workout) return;
+
+    activeTrainingPlanWorkoutId = workout.id;
+    renderTrainingPlanWorkout();
+}
+
+trainingPlanWorkoutList.addEventListener("click", event => {
+    const tile = event.target.closest("[data-select-plan-workout]");
+    if (!tile || !trainingPlanWorkoutList.contains(tile)) return;
+    openTrainingPlanWorkout(tile.dataset.selectPlanWorkout);
+});
+
+backToTrainingPlanWorkoutsButton.addEventListener("click", () => {
+    activeTrainingPlanWorkoutId = null;
+    trainingPlanWorkoutDetailView.classList.add("hidden");
+    trainingPlanWorkoutListView.classList.remove("hidden");
+    renderTrainingPlanWorkoutList();
+});
+
+openSelectedWorkoutButton.addEventListener("click", () => {
+    if (activeTrainingPlanWorkoutId === null) return;
+    trainingPlanView.classList.add("hidden");
+    openWorkout(Number(activeTrainingPlanWorkoutId));
+});
+
+trainingPlanExercisePicker.addEventListener("click", event => {
+    const catalogToggle = event.target.closest("[data-toggle-plan-catalog]");
+    if (catalogToggle) {
+        const form = trainingPlanExercisePicker.querySelector("[data-plan-catalog-form]");
+        const expanded = catalogToggle.getAttribute("aria-expanded") === "true";
+        catalogToggle.setAttribute("aria-expanded", String(!expanded));
+        form.classList.toggle("hidden", expanded);
+        if (!expanded) {
+            form.querySelector("[data-plan-catalog-select]").focus();
+        }
+        return;
+    }
+
+    const button = event.target.closest("[data-add-plan-exercise]");
+    if (!button || !trainingPlanExercisePicker.contains(button)) return;
+    const exercise = findWorkoutExerciseById(button.dataset.addPlanExercise);
+    if (!exercise) return;
+
+    exercise.plannedSets = [createEmptyPlannedSet(
+        getTrainingPlanFields(exercise.name)
+    )];
+    savePlannedSets(exercise);
+    renderTrainingPlanWorkout();
+});
+
+trainingPlanExercisePicker.addEventListener("submit", async event => {
+    const form = event.target.closest("[data-plan-catalog-form]");
+    if (!form) return;
+    event.preventDefault();
+    const workout = workouts.find(item =>
+        String(item.id) === String(activeTrainingPlanWorkoutId)
+    );
+    const catalogSelect = form.querySelector("[data-plan-catalog-select]");
+    const catalogExercise = exercises.find(exercise =>
+        exercise.name === catalogSelect.value
+    );
+    if (!workout || !catalogExercise) return;
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+        let exercise = workout.exercises.find(item =>
+            item.name.trim().toLowerCase() ===
+            catalogExercise.name.trim().toLowerCase()
+        );
+
+        if (!exercise) {
+            const { data: savedExercise, error } = await supabaseClient
+                .from("workout_exercises")
+                .insert({
+                    workout_id: workout.id,
+                    exercise_id: catalogExercise.id,
+                    name: catalogExercise.name,
+                    notes: "",
+                    exercise_order: workout.exercises.length
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            exercise = {
+                id: savedExercise.id,
+                exerciseId: catalogExercise.id,
+                name: savedExercise.name,
+                notes: "",
+                plannedSets: [],
+                sets: []
+            };
+            workout.exercises.push(exercise);
+        }
+
+        exercise.plannedSets = [
+            createEmptyPlannedSet(getTrainingPlanFields(exercise.name))
+        ];
+        trainingPlanStatus.textContent = "";
+        catalogSelect.value = "";
+        savePlannedSets(exercise);
+        renderTrainingPlanWorkout();
+    } catch (error) {
+        console.error("Błąd dodawania ćwiczenia z katalogu do planu:", error);
+        trainingPlanStatus.textContent =
+            "Nie udało się dodać ćwiczenia. Spróbuj ponownie.";
+    } finally {
+        submitButton.disabled = false;
+    }
+});
+
+trainingPlanSelectedExercises.addEventListener("input", event => {
+    const input = event.target.closest("[data-plan-exercise-id][data-plan-field]");
+    if (input && input.tagName !== "SELECT") updatePlannedSet(input);
+});
+
+trainingPlanSelectedExercises.addEventListener("change", event => {
+    const select = event.target.closest(
+        'select[data-plan-exercise-id][data-plan-field]'
+    );
+    updatePlannedSet(select);
+});
+
+trainingPlanSelectedExercises.addEventListener("click", async event => {
+    const deleteWorkoutExerciseButton = event.target.closest(
+        "[data-delete-workout-exercise]"
+    );
+    if (deleteWorkoutExerciseButton) {
+        const exercise = findWorkoutExerciseById(
+            deleteWorkoutExerciseButton.dataset.deleteWorkoutExercise
+        );
+        const workout = workouts.find(item =>
+            String(item.id) === String(activeTrainingPlanWorkoutId)
+        );
+        if (!exercise || !workout || !workout.exercises.includes(exercise)) return;
+
+        const confirmed = confirm(
+            `Czy na pewno usunąć ćwiczenie "${exercise.name}" z treningu? ` +
+            "Usunięte zostaną również jego wykonane i zaplanowane serie."
+        );
+        if (!confirmed) return;
+
+        deleteWorkoutExerciseButton.disabled = true;
+        const pendingSaveTimer = plannedSetsSaveTimers.get(exercise.id);
+        if (pendingSaveTimer) {
+            clearTimeout(pendingSaveTimer);
+            plannedSetsSaveTimers.delete(exercise.id);
+        }
+
+        const pendingSave = plannedSetsSaveQueues.get(exercise.id);
+        if (pendingSave) {
+            try {
+                await pendingSave;
+            } catch (error) {
+                console.error("Błąd zapisu planu przed usunięciem ćwiczenia:", error);
+            }
+        }
+
+        try {
+            const { error } = await supabaseClient
+                .from("workout_exercises")
+                .delete()
+                .eq("id", exercise.id);
+            if (error) throw error;
+
+            workout.exercises = workout.exercises.filter(item => item !== exercise);
+            plannedSetsSaveTimers.delete(exercise.id);
+            plannedSetsSaveQueues.delete(exercise.id);
+            trainingPlanStatus.textContent = "";
+            renderTrainingPlanWorkout();
+        } catch (error) {
+            console.error("Błąd usuwania ćwiczenia z treningu:", error);
+            trainingPlanStatus.textContent =
+                "Nie udało się usunąć ćwiczenia z treningu. Spróbuj ponownie.";
+            deleteWorkoutExerciseButton.disabled = false;
+        }
+        return;
+    }
+
+    const removeExerciseButton = event.target.closest("[data-remove-plan-exercise]");
+    if (removeExerciseButton) {
+        const exercise = findWorkoutExerciseById(
+            removeExerciseButton.dataset.removePlanExercise
+        );
+        if (!exercise) return;
+        exercise.plannedSets = [];
+        savePlannedSets(exercise);
+        renderTrainingPlanWorkout();
+        return;
+    }
+
+    const addButton = event.target.closest("[data-add-planned-set]");
+    if (addButton) {
+        const exercise = findWorkoutExerciseById(addButton.dataset.planExerciseId);
+        if (!exercise) return;
+
+        const fields = getTrainingPlanFields(exercise.name);
+        exercise.plannedSets = Array.isArray(exercise.plannedSets)
+            ? exercise.plannedSets
+            : [];
+        const previousSet = exercise.plannedSets[exercise.plannedSets.length - 1];
+        if (previousSet) {
+            const { id, ...setData } = previousSet;
+            exercise.plannedSets.push(setData);
+        } else {
+            exercise.plannedSets.push(createEmptyPlannedSet(fields));
+        }
+        savePlannedSets(exercise);
+        renderTrainingPlanWorkout();
+        return;
+    }
+
+    const removeButton = event.target.closest("[data-remove-planned-set]");
+    if (!removeButton) return;
+
+    const exercise = findWorkoutExerciseById(removeButton.dataset.planExerciseId);
+    if (!exercise || !Array.isArray(exercise.plannedSets)) return;
+    exercise.plannedSets.splice(Number(removeButton.dataset.removePlannedSet), 1);
+    savePlannedSets(exercise);
+    renderTrainingPlanWorkout();
+});
+
+trainingPlanHistory.addEventListener("click", event => {
+    const exerciseTrigger = event.target.closest("[data-exercise-history-name]");
+    if (exerciseTrigger && trainingPlanHistory.contains(exerciseTrigger)) {
+        event.stopPropagation();
+        trainingPlanView.classList.add("hidden");
+        openExerciseHistory(exerciseTrigger.dataset.exerciseHistoryName);
+        return;
+    }
+
+    const workoutCard = event.target.closest(".workout-card[data-id]");
+    if (!workoutCard || !trainingPlanHistory.contains(workoutCard)) return;
+    trainingPlanView.classList.add("hidden");
+    openWorkout(Number(workoutCard.dataset.id));
+});
+
+function updatePlannedSet(input) {
+    if (!input) return;
+    if (!input.checkValidity()) {
+        trainingPlanStatus.textContent =
+            "Wartość poza dozwolonym zakresem — popraw ją, aby zapisać plan.";
+        return;
+    }
+
+    const exercise = findWorkoutExerciseById(input.dataset.planExerciseId);
+    const field = input.dataset.planField;
+    if (!exercise || !getTrainingPlanFields(exercise.name).includes(field)) {
+        return;
+    }
+
+    if (
+        NUMERIC_SET_FIELDS.includes(field) &&
+        input.value.trim() !== "" &&
+        !Number.isFinite(parseNumericInput(input.value))
+    ) {
+        trainingPlanStatus.textContent =
+            "Wpisz poprawną liczbę. Możesz użyć przecinka lub kropki.";
+        return;
+    }
+
+    if (
+        field === "rpe" &&
+        input.value.trim() !== "" &&
+        !Number.isInteger(parseNumericInput(input.value) * 4)
+    ) {
+        trainingPlanStatus.textContent =
+            "RPE musi być wielokrotnością 0,25.";
+        return;
+    }
+
+    const fields = getTrainingPlanFields(exercise.name);
+    const setIndex = Number(input.dataset.planSetIndex);
+    if (!Number.isInteger(setIndex) || setIndex < 0) return;
+    exercise.plannedSets = Array.isArray(exercise.plannedSets)
+        ? exercise.plannedSets
+        : [];
+    while (exercise.plannedSets.length <= setIndex) {
+        exercise.plannedSets.push(createEmptyPlannedSet(fields));
+    }
+    exercise.plannedSets[setIndex][field] =
+        NUMERIC_SET_FIELDS.includes(field) && input.value.trim() !== ""
+            ? parseNumericInput(input.value)
+            : input.value;
+    savePlannedSets(exercise);
+}
 
 statisticsExerciseSelect.addEventListener(
     "change",
@@ -5410,6 +6276,10 @@ cancelDialogButton.addEventListener(
 "click",
 () => workoutDialog.close()
 );
+
+workoutDialog.addEventListener("close", () => {
+    isCreatingWorkoutFromPlan = false;
+});
 
 addExerciseButton.addEventListener(
 "click",
@@ -5739,6 +6609,7 @@ async function fetchDataFromSupabase() {
 
 
     let setData = [];
+    let plannedSetData = [];
 
 
     if (
@@ -5796,6 +6667,28 @@ async function fetchDataFromSupabase() {
 
     }
 
+    if (workoutExerciseIds.length > 0) {
+        const pageSize = 500;
+
+        for (let from = 0; ; from += pageSize) {
+            const { data, error } = await supabaseClient
+                .from("planned_sets")
+                .select("*")
+                .in("workout_exercise_id", workoutExerciseIds)
+                .order("set_order", { ascending: true })
+                .range(from, from + pageSize - 1);
+
+            if (error) {
+                console.error("Błąd pobierania planowanych serii:", error);
+                alert("Nie udało się pobrać planowanych serii z Supabase. Sprawdź, czy zastosowano migrację tabeli planned_sets.");
+                return;
+            }
+
+            plannedSetData.push(...data);
+            if (data.length < pageSize) break;
+        }
+    }
+
 
     /*
      * ZBUDUJ workouts[]
@@ -5815,13 +6708,14 @@ async function fetchDataFromSupabase() {
                         .map(
                             exercise => {
 
+                                const exerciseSetRows =
+                                    setData.filter(
+                                        set =>
+                                            set.workout_exercise_id ===
+                                            exercise.id
+                                    );
                                 const sets =
-                                    setData
-                                        .filter(
-                                            set =>
-                                                set.workout_exercise_id ===
-                                                exercise.id
-                                        )
+                                    exerciseSetRows
                                         .map(
                                             set => ({
 
@@ -5847,6 +6741,13 @@ async function fetchDataFromSupabase() {
 
                                     notes:
                                         exercise.notes,
+
+                                    plannedSets:
+                                        plannedSetData
+                                            .filter(set =>
+                                                set.workout_exercise_id === exercise.id
+                                            )
+                                            .map(set => ({ ...set.data })),
 
                                     sets
 
@@ -5933,6 +6834,16 @@ if (!rareExercisesView.classList.contains("hidden")) {
 
 if (!recordsView.classList.contains("hidden")) {
     renderSbdRecords();
+}
+
+if (!trainingPlanView.classList.contains("hidden")) {
+    renderTrainingPlanWorkoutList();
+    if (activeTrainingPlanWorkoutId !== null) {
+        renderTrainingPlanWorkout();
+    } else {
+        trainingPlanWorkoutListView.classList.remove("hidden");
+        trainingPlanWorkoutDetailView.classList.add("hidden");
+    }
 }
 
 }
@@ -6092,6 +7003,7 @@ function buildExportPayload() {
             exercises: (workout.exercises || []).map(exercise => ({
                 name: exercise.name,
                 notes: exercise.notes || "",
+                plannedSets: (exercise.plannedSets || []).map(({ id, ...set }) => ({ ...set })),
                 sets: (exercise.sets || []).map(set => ({
                     data: Object.fromEntries(
                         Object.entries(set).filter(([key]) => key !== "id")
@@ -6220,6 +7132,53 @@ importJsonFile.addEventListener("change", async () => {
                     );
                     invalid = true;
                     return;
+                }
+
+                if (
+                    exercise.plannedSets !== undefined &&
+                    !Array.isArray(exercise.plannedSets)
+                ) {
+                    errors.push(
+                        `${label}, ${exercise.name}: pole "plannedSets" musi być tablicą.`
+                    );
+                    invalid = true;
+                } else {
+                    (exercise.plannedSets || []).forEach((set, si) => {
+                        if (!set || typeof set !== "object" || Array.isArray(set)) {
+                            errors.push(
+                                `${label}, ${exercise.name}, planowana seria ${si + 1}: niepoprawne dane.`
+                            );
+                            invalid = true;
+                            return;
+                        }
+
+                        for (const [key, value] of Object.entries(set)) {
+                            if (
+                                value !== "" &&
+                                value !== null &&
+                                value !== undefined &&
+                                !Object.keys(FIELD_DEFINITIONS).includes(key)
+                            ) {
+                                errors.push(
+                                    `${label}, ${exercise.name}, planowana seria ${si + 1}: nieznane pole "${key}".`
+                                );
+                                invalid = true;
+                            }
+
+                            if (
+                                NUMERIC_SET_FIELDS.includes(key) &&
+                                value !== "" &&
+                                value !== null &&
+                                value !== undefined &&
+                                (!(["number", "string"].includes(typeof value)) || !Number.isFinite(Number(value)))
+                            ) {
+                                errors.push(
+                                    `${label}, ${exercise.name}, planowana seria ${si + 1}: "${key}" musi być liczbą.`
+                                );
+                                invalid = true;
+                            }
+                        }
+                    });
                 }
 
                 exercise.sets.forEach((set, si) => {
@@ -6503,9 +7462,7 @@ importJsonFile.addEventListener("change", async () => {
 
                     if (exerciseError) throw exerciseError;
 
-                    if (exercise.sets.length) {
-                        
-                        const rows = exercise.sets.map((set, setIndex) => {
+                    const rows = exercise.sets.map((set, setIndex) => {
                             const { id, ...rest } = set.data ?? set;
 
                             for (const field of NUMERIC_SET_FIELDS) {
@@ -6538,12 +7495,48 @@ importJsonFile.addEventListener("change", async () => {
                             };
                         });
 
+                    const plannedRows = (exercise.plannedSets || []).map((set, setIndex) => {
+                            const { id, ...data } = set;
+                            for (const field of NUMERIC_SET_FIELDS) {
+                                if (
+                                    data[field] !== "" &&
+                                    data[field] !== null &&
+                                    data[field] !== undefined
+                                ) {
+                                    data[field] = Number(data[field]);
+                                }
+                            }
+
+                            if (typeof data.setType === "string") {
+                                const option = FIELD_DEFINITIONS.setType.options.find(
+                                    value => value.toLowerCase() === data.setType.toLowerCase()
+                                );
+                                if (option) data.setType = option;
+                            }
+
+                            return {
+                                workout_exercise_id: savedExercise.id,
+                                set_order: setIndex,
+                                data
+                            };
+                        });
+
+                    if (rows.length) {
                         const { error: setsError } =
                             await supabaseClient
                                 .from("sets")
                                 .insert(rows);
 
                         if (setsError) throw setsError;
+                    }
+
+                    if (plannedRows.length) {
+                        const { error: plannedSetsError } =
+                            await supabaseClient
+                                .from("planned_sets")
+                                .insert(plannedRows);
+
+                        if (plannedSetsError) throw plannedSetsError;
                     }
                 }
 

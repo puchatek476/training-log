@@ -59,10 +59,11 @@
         <div class="header-actions">
 
             <button
-                id="exercisesTabButton"
+                type="button"
+                id="trainingPlanViewButton"
                 class="button button-secondary"
             >
-                Ćwiczenia
+                Plan
             </button>
 
             <button
@@ -127,6 +128,14 @@
                         class="button button-secondary"
                     >
                         Ustawienia
+                    </button>
+
+                    <button
+                        type="button"
+                        id="exercisesTabButton"
+                        class="button button-secondary"
+                    >
+                        Ćwiczenia
                     </button>
 
                     <button
@@ -377,6 +386,68 @@
                 <h2 id="statisticsChartTitle">Wyniki ćwiczenia na treningu</h2>
                 <p class="muted">Największy ciężar lub najdłuższy czas ćwiczenia w kolejnych treningach.</p>
                 <div id="exerciseWeightChart"></div>
+            </section>
+        </section>
+    </main>
+
+</section>
+
+<!-- PLAN DŁUGOTERMINOWY -->
+
+<section id="trainingPlanView" class="hidden">
+
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">PLAN TRENINGOWY</p>
+            <h1>Plan długoterminowy</h1>
+        </div>
+        <button id="backToHistoryFromTrainingPlanButton" class="button button-secondary">
+            ← Historia
+        </button>
+    </header>
+
+    <main>
+        <section class="workouts-section training-plan-section">
+            <p id="trainingPlanStatus" class="training-plan-status-message" role="status"></p>
+            <section id="trainingPlanWorkoutListView" aria-labelledby="trainingPlanWorkoutListTitle">
+                <div class="training-plan-view-heading">
+                    <div>
+                        <p class="eyebrow">PLANOWANIE</p>
+                        <h2 id="trainingPlanWorkoutListTitle">Wybierz trening</h2>
+                    </div>
+                    <button id="addTrainingPlanWorkoutButton" type="button" class="button button-primary">
+                        <span class="plus">+</span>
+                        Dodaj trening
+                    </button>
+                </div>
+                <div id="trainingPlanWorkoutList" class="training-plan-workout-grid"></div>
+            </section>
+
+            <section id="trainingPlanWorkoutDetailView" class="hidden" aria-labelledby="trainingPlanWorkoutTitle">
+                <div class="training-plan-mode-banner" role="note">
+                    <strong>TRYB PLANOWANIA</strong>
+                    <span>Wpisujesz cele na trening. Nie zmieniasz tutaj wykonanych serii.</span>
+                </div>
+                <div class="training-plan-view-heading">
+                    <button id="backToTrainingPlanWorkoutsButton" type="button" class="button button-secondary">
+                        ← Treningi
+                    </button>
+                    <div class="training-plan-selected-workout-heading">
+                        <p id="trainingPlanWorkoutDate" class="eyebrow"></p>
+                        <h2 id="trainingPlanWorkoutTitle"></h2>
+                    </div>
+                    <button id="openSelectedWorkoutButton" type="button" class="button button-secondary">
+                        Przejdź do treningu
+                    </button>
+                </div>
+
+                <div id="trainingPlanExercisePicker" class="training-plan-exercise-picker"></div>
+                <div id="trainingPlanSelectedExercises" class="training-plan-selected-exercises"></div>
+
+                <section class="training-plan-history" aria-labelledby="trainingPlanHistoryTitle">
+                    <h3 id="trainingPlanHistoryTitle">Wcześniejsze treningi</h3>
+                    <div id="trainingPlanHistory"></div>
+                </section>
             </section>
         </section>
     </main>
@@ -780,7 +851,6 @@
         </div>
     </form>
 </dialog>
-
 
 <dialog id="editWorkoutDialog">
 
