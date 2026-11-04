@@ -1957,6 +1957,8 @@ background: rgba(247, 120, 101, 0.04);
     width: 100%;
     min-width: 0;
     overflow-x: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
 }
 
 .training-plan-section {
