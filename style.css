@@ -176,6 +176,7 @@ padding: 30px 0;
     top: calc(100% + 8px);
     right: 0;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     min-width: 160px;
     gap: 6px;
     padding: 8px;
@@ -415,6 +416,14 @@ border: 1px solid var(--border);
 border-radius: var(--radius);
 }
 
+.settings-section + .settings-section {
+    margin-top: 20px;
+}
+
+#settingsView > .topbar {
+    padding-bottom: 20px;
+}
+
 .settings-checkbox {
 display: flex;
 align-items: center;
@@ -433,6 +442,29 @@ accent-color: var(--accent);
 
 .settings-section p {
 margin: 12px 0 0;
+}
+
+.home-shortcuts-settings h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.home-shortcut-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.home-shortcut-option {
+    align-items: flex-start;
+    min-width: 0;
+    font-weight: 500;
+}
+
+.home-shortcut-option input:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 select,
@@ -989,6 +1021,18 @@ width: 100%;
 margin-top: 20px;
 color: var(--text);
 text-align: left;
+cursor: default;
+}
+
+.workout-empty-actions {
+display: flex;
+flex-wrap: wrap;
+gap: 8px;
+margin-top: 12px;
+}
+
+.workout-empty-actions .workout-plan-action {
+margin-top: 0;
 }
 
 .workout-card:hover {
@@ -2117,8 +2161,57 @@ background: rgba(247, 120, 101, 0.04);
 
 .training-plan-exercise-actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     flex-shrink: 0;
     gap: 8px;
+}
+
+.training-plan-exercise-menu {
+    position: relative;
+}
+
+.training-plan-exercise-menu summary {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 22px;
+    line-height: 1;
+    list-style: none;
+    cursor: pointer;
+}
+
+.training-plan-exercise-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.training-plan-exercise-menu summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.training-plan-exercise-menu button {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 2;
+    width: max-content;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.training-plan-exercise-menu button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .training-plan-exercise-heading h3 {
@@ -2430,23 +2523,23 @@ background: rgba(247, 120, 101, 0.04);
         margin: 0;
     }
 
-    #statisticsViewButton {
+    #historyView > .topbar > .header-actions > #statisticsViewButton {
         grid-column: 1;
         grid-row: 2;
         justify-self: stretch;
     }
 
-    #recordsViewButton {
+    #historyView > .topbar > .header-actions > #recordsViewButton {
         grid-column: 2;
         grid-row: 3;
     }
 
-    #exercisesTabButton {
+    #historyView > .topbar > .header-actions > #exercisesTabButton {
         grid-column: 2;
         grid-row: 2;
     }
 
-    #weeklyViewButton {
+    #historyView > .topbar > .header-actions > #weeklyViewButton {
         grid-column: 1;
         grid-row: 3;
     }

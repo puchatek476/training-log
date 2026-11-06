@@ -259,6 +259,18 @@ const backToHistoryFromSettingsButton =
 const groupIdenticalSetsSetting =
     document.querySelector("#groupIdenticalSetsSetting");
 
+const showPastTrainingPlansSetting =
+    document.querySelector("#showPastTrainingPlansSetting");
+
+const pastTrainingPlansStatus =
+    document.querySelector("#pastTrainingPlansStatus");
+
+const homeShortcutsSetting =
+    document.querySelector("#homeShortcutsSetting");
+
+const homeShortcutsStatus =
+    document.querySelector("#homeShortcutsStatus");
+
 const settingsStatus =
     document.querySelector("#settingsStatus");
 
@@ -289,7 +301,7 @@ const rareExercisesSettingsStatus =
 const rareExercisesList =
     document.querySelector("#rareExercisesList");
 
-let rareExercisesSettingsUserId = null;
+let rareExercisesWorkoutLimit = 10;
 
 const addCompetitionButton =
     document.querySelector("#addCompetitionButton");
@@ -390,7 +402,30 @@ const openSelectedWorkoutButton =
 const addTrainingPlanWorkoutButton =
     document.querySelector("#addTrainingPlanWorkoutButton");
 
+const movePlannedExerciseDialog =
+    document.querySelector("#movePlannedExerciseDialog");
+
+const movePlannedExerciseForm =
+    document.querySelector("#movePlannedExerciseForm");
+
+const movePlannedExerciseName =
+    document.querySelector("#movePlannedExerciseName");
+
+const movePlannedExerciseStatus =
+    document.querySelector("#movePlannedExerciseStatus");
+
+const movePlannedExerciseTarget =
+    document.querySelector("#movePlannedExerciseTarget");
+
+const cancelMovePlannedExerciseButton =
+    document.querySelector("#cancelMovePlannedExerciseButton");
+
+const confirmMovePlannedExerciseButton =
+    document.querySelector("#confirmMovePlannedExerciseButton");
+
 let activeTrainingPlanWorkoutId = null;
+let movingPlannedExerciseId = null;
+let movingPlannedExerciseWorkoutId = null;
 let isCreatingWorkoutFromPlan = false;
 const plannedSetsSaveTimers = new Map();
 const plannedSetsSaveQueues = new Map();
@@ -577,8 +612,45 @@ let isWorkoutEditing = false;
 let isExerciseOrderSaving = false;
 let isActiveWorkoutGymEditing = false;
 let groupIdenticalSets = false;
+let showPastTrainingPlans = false;
 let currentUserId = null;
 const pendingSetSaveQueues = new Map();
+const HOME_SHORTCUT_OPTIONS = [
+    { id: "trainingPlanViewButton", label: "Plan" },
+    { id: "statisticsViewButton", label: "Statystyki" },
+    { id: "recordsViewButton", label: "Rekordy" },
+    { id: "weeklyViewButton", label: "Ostatnie 7 dni" },
+    { id: "gymsTabButton", label: "Siłownie" },
+    { id: "importJsonButton", label: "Importuj" },
+    { id: "exportJsonButton", label: "Eksportuj" },
+    { id: "rareExercisesViewButton", label: "Najrzadziej wykonywane" },
+    { id: "exercisesTabButton", label: "Ćwiczenia" },
+    { id: "addCompetitionButton", label: "Dodaj zawody" },
+    { id: "logoutButton", label: "Wyloguj" }
+];
+const DEFAULT_HOME_SHORTCUT_IDS = [
+    "trainingPlanViewButton",
+    "statisticsViewButton",
+    "recordsViewButton",
+    "weeklyViewButton"
+];
+const HEADER_MENU_ITEM_ORDER = [
+    "gymsTabButton",
+    "importJsonButton",
+    "exportJsonButton",
+    "rareExercisesViewButton",
+    "settingsViewButton",
+    "trainingPlanViewButton",
+    "statisticsViewButton",
+    "recordsViewButton",
+    "weeklyViewButton",
+    "exercisesTabButton",
+    "addCompetitionButton",
+    "importJsonFile",
+    "logoutButton"
+];
+let homeShortcutIds = [...DEFAULT_HOME_SHORTCUT_IDS];
+let draftHomeShortcutIds = [...DEFAULT_HOME_SHORTCUT_IDS];
 
 window.addEventListener(
     "beforeunload",
@@ -2117,41 +2189,7 @@ function renderSbdRecords() {
             return;
         }
 
-        const userId = currentUserId;
-        if (
-            userId &&
-            rareExercisesSettingsUserId !== userId
-        ) {
-            rareExercisesSettingsUserId = userId;
-            rareExercisesSettingsStatus.textContent = "";
-
-            try {
-                const savedCount = localStorage.getItem(
-                    `training-log-rare-exercises-workout-count:${userId}`
-                );
-                const parsedCount = Number(savedCount);
-
-                rareExercisesWorkoutCount.value =
-                    savedCount !== null &&
-                    Number.isInteger(parsedCount) &&
-                    parsedCount > 0
-                        ? String(parsedCount)
-                        : "10";
-            } catch (error) {
-                console.error(
-                    "Błąd odczytu liczby treningów dla rzadkich ćwiczeń:",
-                    error
-                );
-                rareExercisesWorkoutCount.value = "10";
-                rareExercisesSettingsStatus.textContent =
-                    "Nie udało się odczytać zapisanego ustawienia.";
-            }
-        }
-
-        const requestedCount = Number.parseInt(rareExercisesWorkoutCount.value, 10);
-        const workoutCount = Number.isFinite(requestedCount) && requestedCount > 0
-            ? requestedCount
-            : 1;
+        const workoutCount = rareExercisesWorkoutLimit;
         const recentWorkouts = [...workouts]
             .sort((a, b) => b.date.localeCompare(a.date))
             .slice(0, workoutCount);
@@ -2639,7 +2677,14 @@ function renderWorkoutExerciseHistory(workout, matchingExercises) {
             </div>
             <div class="exercise-history-compact">
                 ${matchingExercises.map(exercise =>
-                    renderExercise(exercise, 0, true, false, true)
+                    renderExercise(
+                        exercise,
+                        0,
+                        true,
+                        false,
+                        true,
+                        canShowPlannedSetsForWorkout(workout)
+                    )
                 ).join("")}
             </div>
         </article>
@@ -2882,42 +2927,42 @@ function renderActiveWorkout() {
     );
 
 if (!workout.exercises.length) {
-
-    activeExercises.innerHTML = isWorkoutEditing ? `
-        <div class="workout-card">
-
+    const canOpenTrainingPlan = canOpenWorkoutTrainingPlan(workout);
+    activeExercises.innerHTML = `
+        <div class="workout-card workout-empty-state">
             <h3>Brak ćwiczeń</h3>
-
-            <p class="muted">
-                Dodaj pierwsze ćwiczenie do treningu.
-            </p>
-
+            <p class="muted">Dodaj pierwsze ćwiczenie do treningu.</p>
+            <div class="workout-empty-actions">
+                ${!isWorkoutEditing ? `
+                    <button
+                        type="button"
+                        class="button button-secondary"
+                        data-add-first-workout-exercise
+                    >Dodaj ćwiczenie</button>
+                ` : ""}
+                ${canOpenTrainingPlan ? `
+                    <button
+                        type="button"
+                        class="button button-secondary workout-plan-action"
+                        data-open-training-plan="${escapeHtml(String(workout.id))}"
+                    >Przejdź do planowania</button>
+                ` : ""}
+            </div>
         </div>
-    ` : `
-        <button
-            type="button"
-            class="workout-card workout-empty-state"
-            aria-label="Edytuj trening i dodaj pierwsze ćwiczenie"
-        >
-            <h3>Brak ćwiczeń</h3>
-
-            <p class="muted">
-                Dodaj pierwsze ćwiczenie do treningu.
-            </p>
-        </button>
     `;
 
-    const emptyWorkoutButton =
-        activeExercises.querySelector(".workout-empty-state");
+    const addFirstExerciseButton =
+        activeExercises.querySelector("[data-add-first-workout-exercise]");
 
-    if (emptyWorkoutButton) {
-        emptyWorkoutButton.addEventListener("click", () => {
+    if (addFirstExerciseButton) {
+        addFirstExerciseButton.addEventListener("click", () => {
             setWorkoutEditing(true);
             renderActiveWorkout();
             addExercise();
         });
     }
 
+    attachTrainingPlanLinks();
     return;
 }
 
@@ -2930,7 +2975,9 @@ activeExercises.innerHTML =
                     exercise,
                     exerciseIndex,
                     false,
-                    true
+                    canOpenWorkoutTrainingPlan(workout),
+                    false,
+                    canShowPlannedSetsForWorkout(workout)
                 )
         )
         .join("");
@@ -3421,8 +3468,9 @@ function renderExercise(
     exercise,
     exerciseIndex,
     highlightMaxWeight = false,
-    isActiveWorkoutExercise = false,
-    readOnly = false
+    canOpenTrainingPlan = false,
+    readOnly = false,
+    showPlannedSets = true
 ) {
 
     const sets =
@@ -3438,7 +3486,7 @@ function renderExercise(
         exerciseConfig?.fields ||
         ["weight", "reps", "rpe"];
 
-    const planActionButton = isActiveWorkoutExercise && !hasPlannedSets(exercise)
+    const planActionButton = canOpenTrainingPlan && !hasPlannedSets(exercise)
         ? `
             <button
                 type="button"
@@ -3671,11 +3719,9 @@ function renderExercise(
                     </div>
                 `
                 : "";
-        const plannedSetsNote = renderPlannedSetsNote(
-            exercise,
-            fields,
-            isActiveWorkoutExercise
-        );
+        const plannedSetsNote = showPlannedSets
+            ? renderPlannedSetsNote(exercise, fields, canOpenTrainingPlan)
+            : "";
 
 
         return `
@@ -3740,11 +3786,9 @@ function renderExercise(
 
     const headerFields = renderSetFieldHeaders(fields);
     const mobileSetColumns = getSetMobileColumns(fields);
-    const plannedSetsNote = renderPlannedSetsNote(
-        exercise,
-        fields,
-        isActiveWorkoutExercise
-    );
+    const plannedSetsNote = showPlannedSets
+        ? renderPlannedSetsNote(exercise, fields, canOpenTrainingPlan)
+        : "";
     return `
         <section class="active-exercise">
 
@@ -5392,6 +5436,281 @@ backToHistoryFromRecordsButton.addEventListener(
     }
 );
 
+function renderHomeShortcutSettings() {
+    homeShortcutsSetting.innerHTML = HOME_SHORTCUT_OPTIONS.map(option => `
+        <label class="settings-checkbox home-shortcut-option">
+            <input
+                type="checkbox"
+                value="${option.id}"
+                ${draftHomeShortcutIds.includes(option.id) ? "checked" : ""}
+            >
+            <span>${option.label}</span>
+        </label>
+    `).join("");
+    updateHomeShortcutOptionAvailability();
+}
+
+function canOpenWorkoutTrainingPlan(workout) {
+    return workout.date >= getTodayInternal();
+}
+
+function canShowPlannedSetsForWorkout(workout) {
+    return canOpenWorkoutTrainingPlan(workout) || showPastTrainingPlans;
+}
+
+async function saveUserSettings(updates) {
+    if (!currentUserId) {
+        throw new Error("Brak zalogowanego użytkownika.");
+    }
+
+    const { error } = await supabaseClient
+        .from("user_settings")
+        .upsert({
+            user_id: currentUserId,
+            group_identical_sets: groupIdenticalSets,
+            show_past_training_plans: showPastTrainingPlans,
+            home_shortcut_ids: homeShortcutIds,
+            rare_exercises_workout_count: rareExercisesWorkoutLimit,
+            ...updates
+        }, { onConflict: "user_id" });
+    if (error) throw error;
+}
+
+function loadPastTrainingPlanPreference(value) {
+    showPastTrainingPlans = value === true;
+    showPastTrainingPlansSetting.checked = showPastTrainingPlans;
+    pastTrainingPlansStatus.textContent = "";
+}
+
+showPastTrainingPlansSetting.addEventListener("change", async () => {
+    if (!currentUserId) {
+        showPastTrainingPlansSetting.checked = showPastTrainingPlans;
+        pastTrainingPlansStatus.textContent =
+            "Zaloguj się ponownie, aby zapisać ustawienie.";
+        return;
+    }
+
+    const nextValue = showPastTrainingPlansSetting.checked;
+    showPastTrainingPlansSetting.disabled = true;
+    pastTrainingPlansStatus.textContent = "Zapisywanie ustawienia...";
+    try {
+        await saveUserSettings({ show_past_training_plans: nextValue });
+        showPastTrainingPlans = nextValue;
+        pastTrainingPlansStatus.textContent = "Ustawienie zapisane.";
+        if (activeWorkoutId !== null) renderActiveWorkout();
+    } catch (error) {
+        console.error("Błąd zapisu ustawienia planów przeszłych treningów:", error);
+        showPastTrainingPlansSetting.checked = showPastTrainingPlans;
+        pastTrainingPlansStatus.textContent = "Nie udało się zapisać ustawienia.";
+    } finally {
+        showPastTrainingPlansSetting.disabled = false;
+    }
+});
+
+function updateHomeShortcutOptionAvailability() {
+    const hasFourSelected = draftHomeShortcutIds.length === 4;
+    homeShortcutsSetting
+        .querySelectorAll('input[type="checkbox"]')
+        .forEach(input => {
+            input.disabled =
+                hasFourSelected && !draftHomeShortcutIds.includes(input.value);
+        });
+}
+
+function applyHomeShortcuts(ids) {
+    if (ids.length !== 4 || new Set(ids).size !== 4) {
+        throw new Error("Należy wybrać dokładnie 4 skróty.");
+    }
+
+    const selectedIds = new Set(ids);
+    const headerActions = document.querySelector("#historyView .header-actions");
+    const headerMenu = document.querySelector("#headerMenu");
+    const headerMenuItems = document.querySelector("#headerMenu .header-menu-items");
+    if (!headerActions || !headerMenu || !headerMenuItems) {
+        throw new Error("Nie znaleziono elementów menu głównego.");
+    }
+
+    ids.forEach(id => {
+        const button = document.getElementById(id);
+        if (!button) throw new Error(`Nie znaleziono przycisku ${id}.`);
+        headerActions.insertBefore(button, headerMenu);
+    });
+
+    HEADER_MENU_ITEM_ORDER.forEach(id => {
+        const item = document.getElementById(id);
+        if (!item) throw new Error(`Nie znaleziono elementu menu ${id}.`);
+        if (id === "settingsViewButton" || !selectedIds.has(id)) {
+            headerMenuItems.append(item);
+        }
+    });
+}
+
+function loadHomeShortcutPreferences(savedIds) {
+    const availableIds = new Set(HOME_SHORTCUT_OPTIONS.map(option => option.id));
+    homeShortcutIds =
+        Array.isArray(savedIds) &&
+        savedIds.length === 4 &&
+        new Set(savedIds).size === 4 &&
+        savedIds.every(id => availableIds.has(id))
+            ? savedIds
+            : [...DEFAULT_HOME_SHORTCUT_IDS];
+    draftHomeShortcutIds = [...homeShortcutIds];
+    applyHomeShortcuts(homeShortcutIds);
+    renderHomeShortcutSettings();
+    homeShortcutsStatus.textContent = "";
+}
+
+async function migrateLegacyUserSettings() {
+    if (!currentUserId) return;
+
+    const updates = {};
+    const migratedKeys = [];
+    const originalPastPlans = showPastTrainingPlans;
+    const originalShortcuts = [...homeShortcutIds];
+    const originalWorkoutCount = rareExercisesWorkoutLimit;
+    let migratedPastPlans = showPastTrainingPlans;
+    let migratedShortcuts = [...homeShortcutIds];
+    let migratedWorkoutCount = rareExercisesWorkoutLimit;
+    try {
+        const savedPastPlans = localStorage.getItem(
+            `training-log-show-past-plans:${currentUserId}`
+        );
+        if (savedPastPlans === "true" || savedPastPlans === "false") {
+            migratedPastPlans = savedPastPlans === "true";
+            updates.show_past_training_plans = migratedPastPlans;
+            migratedKeys.push(`training-log-show-past-plans:${currentUserId}`);
+        }
+
+        const savedShortcuts = localStorage.getItem(
+            `training-log-home-shortcuts:${currentUserId}`
+        );
+        if (savedShortcuts !== null) {
+            const parsedShortcuts = JSON.parse(savedShortcuts);
+            const availableIds = new Set(HOME_SHORTCUT_OPTIONS.map(option => option.id));
+            if (
+                Array.isArray(parsedShortcuts) &&
+                parsedShortcuts.length === 4 &&
+                new Set(parsedShortcuts).size === 4 &&
+                parsedShortcuts.every(id => availableIds.has(id))
+            ) {
+                migratedShortcuts = parsedShortcuts;
+                updates.home_shortcut_ids = migratedShortcuts;
+                migratedKeys.push(`training-log-home-shortcuts:${currentUserId}`);
+            }
+        }
+
+        const savedCount = localStorage.getItem(
+            `training-log-rare-exercises-workout-count:${currentUserId}`
+        );
+        const parsedCount = Number(savedCount);
+        if (savedCount !== null && Number.isInteger(parsedCount) && parsedCount > 0) {
+            migratedWorkoutCount = parsedCount;
+            updates.rare_exercises_workout_count = parsedCount;
+            migratedKeys.push(
+                `training-log-rare-exercises-workout-count:${currentUserId}`
+            );
+        }
+    } catch (error) {
+        console.error("Błąd odczytu wcześniejszych ustawień z przeglądarki:", error);
+        homeShortcutsStatus.textContent =
+            "Nie udało się odczytać wcześniejszych ustawień zapisanych w tej przeglądarce.";
+        return;
+    }
+
+    if (!migratedKeys.length) return;
+
+    try {
+        showPastTrainingPlans = migratedPastPlans;
+        homeShortcutIds = migratedShortcuts;
+        rareExercisesWorkoutLimit = migratedWorkoutCount;
+        await saveUserSettings(updates);
+    } catch (error) {
+        showPastTrainingPlans = originalPastPlans;
+        homeShortcutIds = originalShortcuts;
+        rareExercisesWorkoutLimit = originalWorkoutCount;
+        console.error("Błąd przenoszenia wcześniejszych ustawień do Supabase:", error);
+        showPastTrainingPlansSetting.checked = showPastTrainingPlans;
+        rareExercisesWorkoutCount.value = String(rareExercisesWorkoutLimit);
+        applyHomeShortcuts(homeShortcutIds);
+        draftHomeShortcutIds = [...homeShortcutIds];
+        renderHomeShortcutSettings();
+        homeShortcutsStatus.textContent =
+            "Nie udało się przenieść wcześniejszych ustawień do bazy. Ustawienia w przeglądarce zostały zachowane.";
+        pastTrainingPlansStatus.textContent =
+            "Nie udało się zsynchronizować wcześniejszego ustawienia z bazą.";
+        rareExercisesSettingsStatus.textContent =
+            "Nie udało się zsynchronizować wcześniejszego ustawienia z bazą.";
+        return;
+    }
+
+    migratedKeys.forEach(key => {
+        try {
+            localStorage.removeItem(key);
+        } catch (error) {
+            console.error("Błąd usuwania przeniesionego ustawienia z przeglądarki:", error);
+        }
+    });
+    showPastTrainingPlansSetting.checked = showPastTrainingPlans;
+    rareExercisesWorkoutCount.value = String(rareExercisesWorkoutLimit);
+    applyHomeShortcuts(homeShortcutIds);
+    draftHomeShortcutIds = [...homeShortcutIds];
+    renderHomeShortcutSettings();
+}
+
+homeShortcutsSetting.addEventListener("change", async event => {
+    const input = event.target.closest('input[type="checkbox"]');
+    if (!input || !homeShortcutsSetting.contains(input)) return;
+
+    draftHomeShortcutIds = Array.from(
+        homeShortcutsSetting.querySelectorAll('input[type="checkbox"]:checked'),
+        checkedInput => checkedInput.value
+    );
+
+    if (draftHomeShortcutIds.length > 4) {
+        input.checked = false;
+        draftHomeShortcutIds = draftHomeShortcutIds.filter(id => id !== input.value);
+        homeShortcutsStatus.textContent = "Możesz wybrać maksymalnie 4 skróty.";
+        updateHomeShortcutOptionAvailability();
+        return;
+    }
+
+    if (draftHomeShortcutIds.length < 4) {
+        homeShortcutsStatus.textContent =
+            `Zaznacz jeszcze ${4 - draftHomeShortcutIds.length}, aby zastosować wybór.`;
+        updateHomeShortcutOptionAvailability();
+        return;
+    }
+
+    if (!currentUserId) {
+        draftHomeShortcutIds = [...homeShortcutIds];
+        renderHomeShortcutSettings();
+        homeShortcutsStatus.textContent =
+            "Zaloguj się ponownie, aby zapisać ustawienie.";
+        return;
+    }
+
+    homeShortcutsSetting
+        .querySelectorAll('input[type="checkbox"]')
+        .forEach(optionInput => {
+            optionInput.disabled = true;
+        });
+    homeShortcutsStatus.textContent = "Zapisywanie skrótów...";
+    try {
+        await saveUserSettings({ home_shortcut_ids: draftHomeShortcutIds });
+        applyHomeShortcuts(draftHomeShortcutIds);
+        homeShortcutIds = [...draftHomeShortcutIds];
+        homeShortcutsStatus.textContent = "Skróty zapisane.";
+    } catch (error) {
+        console.error("Błąd zapisu skrótów strony głównej:", error);
+        draftHomeShortcutIds = [...homeShortcutIds];
+        renderHomeShortcutSettings();
+        homeShortcutsStatus.textContent =
+            "Nie udało się zapisać skrótów. Przywrócono poprzedni wybór.";
+    } finally {
+        updateHomeShortcutOptionAvailability();
+    }
+});
+
 settingsViewButton.addEventListener(
     "click",
     () => {
@@ -5402,6 +5721,9 @@ settingsViewButton.addEventListener(
         weeklyView.classList.add("hidden");
         statisticsView.classList.add("hidden");
         rareExercisesView.classList.add("hidden");
+        settingsStatus.textContent = "";
+        pastTrainingPlansStatus.textContent = "";
+        homeShortcutsStatus.textContent = "";
         settingsView.classList.remove("hidden");
     }
 );
@@ -5427,24 +5749,23 @@ groupIdenticalSetsSetting.addEventListener(
         groupIdenticalSetsSetting.disabled = true;
         settingsStatus.textContent = "Zapisywanie ustawienia...";
 
-        const { error } = await supabaseClient
-            .from("user_settings")
-            .upsert({
-                user_id: currentUserId,
-                group_identical_sets: nextValue
-            }, { onConflict: "user_id" });
-
-        if (error) {
+        let saved = false;
+        try {
+            await saveUserSettings({ group_identical_sets: nextValue });
+            saved = true;
+        } catch (error) {
             console.error("Błąd zapisu ustawień użytkownika:", error);
             groupIdenticalSetsSetting.checked = groupIdenticalSets;
             settingsStatus.textContent = "Nie udało się zapisać ustawienia.";
-            alert("Nie udało się zapisać ustawienia. Sprawdź, czy tabela user_settings została utworzona w Supabase.");
-        } else {
+            alert("Nie udało się zapisać ustawienia. Sprawdź, czy tabela user_settings zawiera wymagane kolumny.");
+        } finally {
+            groupIdenticalSetsSetting.disabled = false;
+        }
+
+        if (saved) {
             groupIdenticalSets = nextValue;
             settingsStatus.textContent = "Ustawienie zapisane.";
         }
-
-        groupIdenticalSetsSetting.disabled = false;
     }
 );
 
@@ -5657,6 +5978,9 @@ function renderTrainingPlanExercise(exercise) {
         : [];
     const sets = savedSets;
     const mobileColumns = getSetMobileColumns(fields);
+    const hasFutureTargets =
+        hasPlannedSets(exercise) &&
+        getFutureTrainingPlanTargets(activeTrainingPlanWorkoutId).length > 0;
 
     return `
         <section class="training-plan-exercise">
@@ -5666,6 +5990,15 @@ function renderTrainingPlanExercise(exercise) {
                     <h3>${escapeHtml(exercise.name)}</h3>
                 </div>
                 <div class="training-plan-exercise-actions">
+                    ${hasFutureTargets ? `
+                        <details class="training-plan-exercise-menu">
+                            <summary aria-label="Więcej opcji dla ${escapeHtml(exercise.name)}">⋯</summary>
+                            <button
+                                type="button"
+                                data-move-plan-exercise="${escapeHtml(String(exercise.id))}"
+                            >Przenieś do treningu</button>
+                        </details>
+                    ` : ""}
                     <button
                         type="button"
                         class="button button-secondary training-plan-remove-exercise"
@@ -5713,6 +6046,213 @@ function renderTrainingPlanExercise(exercise) {
             >+ Dodaj serię</button>
         </section>
     `;
+}
+
+function getFutureTrainingPlanTargets(sourceWorkoutId) {
+    return workouts
+        .filter(workout =>
+            workout.date > getTodayInternal() &&
+            String(workout.id) !== String(sourceWorkoutId)
+        )
+        .sort((a, b) =>
+            a.date.localeCompare(b.date) ||
+            a.name.localeCompare(b.name, "pl")
+        );
+}
+
+function openMovePlannedExerciseDialog(exerciseId) {
+    const sourceWorkout = workouts.find(workout =>
+        workout.exercises.some(exercise =>
+            String(exercise.id) === String(exerciseId)
+        )
+    );
+    const exercise = sourceWorkout?.exercises.find(item =>
+        String(item.id) === String(exerciseId)
+    );
+    if (!sourceWorkout || !exercise) return;
+
+    const targets = getFutureTrainingPlanTargets(sourceWorkout.id);
+    if (!targets.length) return;
+
+    movingPlannedExerciseId = exercise.id;
+    movingPlannedExerciseWorkoutId = sourceWorkout.id;
+    movePlannedExerciseName.textContent = exercise.name;
+    movePlannedExerciseStatus.textContent = "";
+    movePlannedExerciseTarget.innerHTML = `
+        <option value="">Wybierz trening</option>
+        ${targets.map(workout => `
+            <option value="${escapeHtml(String(workout.id))}">
+                ${escapeHtml(formatDate(workout.date))} · ${escapeHtml(workout.name)}
+            </option>
+        `).join("")}
+    `;
+    confirmMovePlannedExerciseButton.disabled = false;
+    movePlannedExerciseDialog.showModal();
+}
+
+async function waitForPlannedSetsSave(exercise) {
+    const pendingSaveTimer = plannedSetsSaveTimers.get(exercise.id);
+    if (pendingSaveTimer) {
+        clearTimeout(pendingSaveTimer);
+        plannedSetsSaveTimers.delete(exercise.id);
+    }
+
+    const pendingSave = plannedSetsSaveQueues.get(exercise.id);
+    if (pendingSave) await pendingSave;
+}
+
+function getPersistablePlannedSets(exercise) {
+    const fields = getTrainingPlanFields(exercise.name);
+    return (exercise.plannedSets || []).filter(set =>
+        fields.some(field =>
+            set[field] !== null &&
+            set[field] !== undefined &&
+            String(set[field]).trim() !== ""
+        )
+    );
+}
+
+function createPlannedSetRows(exerciseId, plannedSets, startOrder) {
+    return plannedSets.map((set, index) => {
+        const data = { ...set };
+        delete data.id;
+        for (const field of NUMERIC_SET_FIELDS) {
+            if (data[field] !== "" && data[field] !== null && data[field] !== undefined) {
+                const numericValue = parseNumericInput(data[field]);
+                if (!Number.isFinite(numericValue)) {
+                    throw new Error(`Nieprawidłowa wartość liczbowa w polu ${field}.`);
+                }
+                data[field] = numericValue;
+            }
+        }
+
+        return {
+            workout_exercise_id: exerciseId,
+            set_order: startOrder + index,
+            data
+        };
+    });
+}
+
+async function movePlannedExercise(sourceWorkout, sourceExercise, targetWorkout) {
+    if (!sourceWorkout.exercises.includes(sourceExercise)) {
+        throw new Error("Ćwiczenie nie należy do treningu źródłowego.");
+    }
+
+    let targetExercise = targetWorkout.exercises.find(exercise =>
+        exercise.name.trim().toLowerCase() ===
+        sourceExercise.name.trim().toLowerCase()
+    );
+    let createdTargetExercise = false;
+    let destinationRowsWritten = false;
+    let targetPlannedSets = [];
+
+    try {
+        await waitForPlannedSetsSave(sourceExercise);
+        const sourcePlannedSets = getPersistablePlannedSets(sourceExercise)
+            .map(({ id, ...set }) => ({ ...set }));
+        if (!sourcePlannedSets.length) {
+            throw new Error("To ćwiczenie nie ma zapisanych planowanych serii.");
+        }
+
+        if (targetExercise) {
+            await waitForPlannedSetsSave(targetExercise);
+            targetPlannedSets = getPersistablePlannedSets(targetExercise)
+                .map(({ id, ...set }) => ({ ...set }));
+        }
+
+        if (!targetExercise) {
+            const { data: savedExercise, error } = await supabaseClient
+                .from("workout_exercises")
+                .insert({
+                    workout_id: targetWorkout.id,
+                    exercise_id: sourceExercise.exerciseId || null,
+                    name: sourceExercise.name,
+                    notes: "",
+                    exercise_order: targetWorkout.exercises.length
+                })
+                .select()
+                .single();
+            if (error) throw error;
+
+            targetExercise = {
+                id: savedExercise.id,
+                exerciseId: savedExercise.exercise_id,
+                name: savedExercise.name,
+                notes: savedExercise.notes || "",
+                plannedSets: [],
+                sets: []
+            };
+            createdTargetExercise = true;
+        }
+
+        const rows = createPlannedSetRows(
+            targetExercise.id,
+            [...targetPlannedSets, ...sourcePlannedSets],
+            0
+        );
+        destinationRowsWritten = true;
+        const { error: insertError } = await supabaseClient
+            .from("planned_sets")
+            .upsert(rows, {
+                onConflict: "workout_exercise_id,set_order"
+            });
+        if (insertError) throw insertError;
+
+        const { error: deleteError } = await supabaseClient
+            .from("planned_sets")
+            .delete()
+            .eq("workout_exercise_id", sourceExercise.id);
+        if (deleteError) throw deleteError;
+
+        targetExercise.plannedSets = [
+            ...targetPlannedSets,
+            ...sourcePlannedSets
+        ];
+        sourceExercise.plannedSets = [];
+        if (createdTargetExercise) targetWorkout.exercises.push(targetExercise);
+
+        trainingPlanStatus.textContent =
+            `Przeniesiono plan ćwiczenia „${sourceExercise.name}” do treningu „${targetWorkout.name}”.`;
+        renderTrainingPlanWorkout();
+        renderTrainingPlanWorkoutList();
+    } catch (error) {
+        if (destinationRowsWritten && targetExercise) {
+            const restoreRows = createPlannedSetRows(
+                targetExercise.id,
+                targetPlannedSets,
+                0
+            );
+            if (restoreRows.length) {
+                const { error: restoreError } = await supabaseClient
+                    .from("planned_sets")
+                    .upsert(restoreRows, {
+                        onConflict: "workout_exercise_id,set_order"
+                    });
+                if (restoreError) {
+                    console.error("Błąd przywracania poprzedniego planu docelowego:", restoreError);
+                }
+            }
+            const { error: cleanupError } = await supabaseClient
+                .from("planned_sets")
+                .delete()
+                .eq("workout_exercise_id", targetExercise.id)
+                .gte("set_order", targetPlannedSets.length);
+            if (cleanupError) {
+                console.error("Błąd wycofywania planu docelowego po nieudanym przenoszeniu:", cleanupError);
+            }
+        }
+        if (createdTargetExercise && targetExercise) {
+            const { error: cleanupError } = await supabaseClient
+                .from("workout_exercises")
+                .delete()
+                .eq("id", targetExercise.id);
+            if (cleanupError) {
+                console.error("Błąd usuwania ćwiczenia docelowego po nieudanym przenoszeniu:", cleanupError);
+            }
+        }
+        throw error;
+    }
 }
 
 function findWorkoutExerciseById(exerciseId) {
@@ -6076,6 +6616,72 @@ trainingPlanSelectedExercises.addEventListener("click", async event => {
     renderTrainingPlanWorkout();
 });
 
+trainingPlanSelectedExercises.addEventListener("click", event => {
+    const moveButton = event.target.closest("[data-move-plan-exercise]");
+    if (!moveButton || !trainingPlanSelectedExercises.contains(moveButton)) return;
+
+    const menu = moveButton.closest("details");
+    if (menu) menu.open = false;
+    openMovePlannedExerciseDialog(moveButton.dataset.movePlanExercise);
+});
+
+movePlannedExerciseDialog.addEventListener("cancel", event => {
+    if (confirmMovePlannedExerciseButton.disabled) event.preventDefault();
+});
+
+movePlannedExerciseDialog.addEventListener("close", () => {
+    movingPlannedExerciseId = null;
+    movingPlannedExerciseWorkoutId = null;
+});
+
+cancelMovePlannedExerciseButton.addEventListener("click", () => {
+    movePlannedExerciseDialog.close();
+    movingPlannedExerciseId = null;
+    movingPlannedExerciseWorkoutId = null;
+});
+
+movePlannedExerciseForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (
+        movingPlannedExerciseId === null ||
+        movingPlannedExerciseWorkoutId === null ||
+        !movePlannedExerciseTarget.value
+    ) return;
+
+    const sourceWorkout = workouts.find(workout =>
+        String(workout.id) === String(movingPlannedExerciseWorkoutId)
+    );
+    const sourceExercise = sourceWorkout?.exercises.find(exercise =>
+        String(exercise.id) === String(movingPlannedExerciseId)
+    );
+    const targetWorkout = getFutureTrainingPlanTargets(sourceWorkout?.id)
+        .find(workout =>
+            String(workout.id) === movePlannedExerciseTarget.value
+        );
+    if (!sourceWorkout || !sourceExercise || !targetWorkout) {
+        movePlannedExerciseStatus.textContent =
+            "Nie można przenieść ćwiczenia: wybierz istniejący przyszły trening.";
+        return;
+    }
+
+    confirmMovePlannedExerciseButton.disabled = true;
+    trainingPlanStatus.textContent = "";
+    movePlannedExerciseStatus.textContent = "";
+    try {
+        await movePlannedExercise(sourceWorkout, sourceExercise, targetWorkout);
+        movePlannedExerciseDialog.close();
+        movingPlannedExerciseId = null;
+        movingPlannedExerciseWorkoutId = null;
+    } catch (error) {
+        console.error("Błąd przenoszenia planu ćwiczenia:", error);
+        movePlannedExerciseStatus.textContent =
+            "Nie udało się dokończyć przenoszenia. Plan źródłowy pozostał; sprawdź trening docelowy.";
+        savePlannedSets(sourceExercise);
+    } finally {
+        confirmMovePlannedExerciseButton.disabled = false;
+    }
+});
+
 trainingPlanHistory.addEventListener("click", event => {
     const exerciseTrigger = event.target.closest("[data-exercise-history-name]");
     if (exerciseTrigger && trainingPlanHistory.contains(exerciseTrigger)) {
@@ -6197,28 +6803,43 @@ backToHistoryFromRareExercisesButton.addEventListener(
 );
 
 rareExercisesWorkoutCount.addEventListener(
-    "input",
-    () => {
+    "change",
+    async () => {
         const count = Number(rareExercisesWorkoutCount.value);
-        if (
-            currentUserId &&
-            Number.isInteger(count) &&
-            count > 0
-        ) {
-            rareExercisesSettingsStatus.textContent = "";
-            try {
-                localStorage.setItem(
-                    `training-log-rare-exercises-workout-count:${currentUserId}`,
-                    String(count)
-                );
-            } catch (error) {
-                console.error(
-                    "Błąd zapisu liczby treningów dla rzadkich ćwiczeń:",
-                    error
-                );
-                rareExercisesSettingsStatus.textContent =
-                    "Nie udało się zapisać ustawienia.";
-            }
+        if (!Number.isInteger(count) || count <= 0) {
+            rareExercisesWorkoutCount.value = String(rareExercisesWorkoutLimit);
+            rareExercisesSettingsStatus.textContent =
+                "Wpisz dodatnią liczbę całkowitą.";
+            return;
+        }
+
+        if (!currentUserId) {
+            rareExercisesWorkoutCount.value = String(rareExercisesWorkoutLimit);
+            rareExercisesSettingsStatus.textContent =
+                "Zaloguj się ponownie, aby zapisać ustawienie.";
+            return;
+        }
+
+        const previousCount = rareExercisesWorkoutLimit;
+        rareExercisesWorkoutCount.disabled = true;
+        rareExercisesSettingsStatus.textContent = "Zapisywanie ustawienia...";
+        rareExercisesWorkoutLimit = count;
+        try {
+            await saveUserSettings({
+                rare_exercises_workout_count: count
+            });
+            rareExercisesSettingsStatus.textContent = "Ustawienie zapisane.";
+        } catch (error) {
+            console.error(
+                "Błąd zapisu liczby treningów dla rzadkich ćwiczeń:",
+                error
+            );
+            rareExercisesWorkoutLimit = previousCount;
+            rareExercisesWorkoutCount.value = String(previousCount);
+            rareExercisesSettingsStatus.textContent =
+                "Nie udało się zapisać ustawienia.";
+        } finally {
+            rareExercisesWorkoutCount.disabled = false;
         }
 
         renderRareExercises();
@@ -6400,18 +7021,40 @@ async function fetchDataFromSupabase() {
         error: userSettingsError
     } = await supabaseClient
         .from("user_settings")
-        .select("group_identical_sets")
+        .select([
+            "group_identical_sets",
+            "show_past_training_plans",
+            "home_shortcut_ids",
+            "rare_exercises_workout_count"
+        ].join(","))
         .eq("user_id", user.id)
         .maybeSingle();
 
     if (userSettingsError) {
         console.error("Błąd pobierania ustawień użytkownika:", userSettingsError);
         settingsStatus.textContent =
-            "Nie udało się pobrać ustawień. Sprawdź, czy tabela user_settings została utworzona w Supabase.";
+            "Nie udało się pobrać ustawień. Sprawdź, czy tabela user_settings zawiera wymagane kolumny.";
         groupIdenticalSets = false;
+        groupIdenticalSetsSetting.checked = false;
+        loadPastTrainingPlanPreference(false);
+        rareExercisesWorkoutLimit = 10;
+        rareExercisesWorkoutCount.value = "10";
+        rareExercisesSettingsStatus.textContent =
+            "Nie udało się pobrać ustawienia z bazy.";
+        loadHomeShortcutPreferences(DEFAULT_HOME_SHORTCUT_IDS);
     } else {
         groupIdenticalSets = userSettings?.group_identical_sets === true;
         settingsStatus.textContent = "";
+        loadPastTrainingPlanPreference(userSettings?.show_past_training_plans);
+        const savedWorkoutCount = Number(userSettings?.rare_exercises_workout_count);
+        rareExercisesWorkoutLimit =
+            Number.isInteger(savedWorkoutCount) && savedWorkoutCount > 0
+                ? savedWorkoutCount
+                : 10;
+        rareExercisesWorkoutCount.value = String(rareExercisesWorkoutLimit);
+        rareExercisesSettingsStatus.textContent = "";
+        loadHomeShortcutPreferences(userSettings?.home_shortcut_ids);
+        await migrateLegacyUserSettings();
     }
     groupIdenticalSetsSetting.checked = groupIdenticalSets;
 

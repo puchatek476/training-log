@@ -645,6 +645,22 @@
             </label>
             <p id="settingsStatus" class="muted" role="status" aria-live="polite"></p>
         </section>
+
+        <section class="workouts-section settings-section past-training-plan-settings">
+            <label class="settings-checkbox">
+                <input id="showPastTrainingPlansSetting" type="checkbox">
+                <span>Pokaż plan przeszłych treningów w podglądzie</span>
+            </label>
+            <p class="muted">Plan przeszłego treningu będzie widoczny także w podglądzie treningu. <br>Niezależnie od tego, jest on zawsze widoczny w widoku Plan.</p>
+            <p id="pastTrainingPlansStatus" class="muted" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="workouts-section settings-section home-shortcuts-settings">
+            <h2>Skróty na stronie głównej</h2>
+            <p class="muted">Wybierz dokładnie 4 przyciski. Ustawienie zapisuje się w tej przeglądarce.</p>
+            <div id="homeShortcutsSetting" class="home-shortcut-options"></div>
+            <p id="homeShortcutsStatus" class="muted" role="status" aria-live="polite"></p>
+        </section>
     </main>
 
 </section>
@@ -848,6 +864,34 @@
         <div class="dialog-actions">
             <button type="button" id="cancelCompetitionButton" class="button button-secondary">Anuluj</button>
             <button type="submit" id="createCompetitionButton" class="button button-primary">Utwórz</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="movePlannedExerciseDialog" class="dialog">
+    <form id="movePlannedExerciseForm">
+        <div class="dialog-heading">
+            <div>
+                <h2>Przenieś ćwiczenie</h2>
+                <p id="movePlannedExerciseName" class="muted"></p>
+            </div>
+        </div>
+        <label class="form-field">
+            Trening docelowy
+            <select id="movePlannedExerciseTarget" required></select>
+        </label>
+        <p class="muted">
+            Zaplanowane serie zostaną dodane do planu wybranego treningu.
+            Wykonane serie pozostaną bez zmian.
+        </p>
+        <p id="movePlannedExerciseStatus" class="training-plan-status-message" role="status"></p>
+        <div class="dialog-actions">
+            <button type="button" id="cancelMovePlannedExerciseButton" class="button button-secondary">
+                Anuluj
+            </button>
+            <button type="submit" id="confirmMovePlannedExerciseButton" class="button button-primary">
+                Przenieś
+            </button>
         </div>
     </form>
 </dialog>
