@@ -90,6 +90,28 @@ margin: 0 auto;
 display: none !important;
 }
 
+.application-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    background: rgba(10, 12, 16, 0.78);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    backdrop-filter: blur(3px);
+}
+
+.application-loading-overlay .loading-spinner {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+}
+
 .eyebrow {
 margin: 0 0 8px;
 color: var(--accent);
@@ -559,7 +581,62 @@ padding-bottom: 48px;
 display: grid;
 grid-template-columns: repeat(7, minmax(0, 1fr));
 gap: 10px;
-padding-bottom: 48px;
+}
+
+.weekly-workout-summary {
+    margin-top: 20px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.weekly-workout-summary h2 {
+    margin: 0;
+    font-size: 17px;
+}
+
+.weekly-workout-summary > p {
+    margin: 12px 0 0;
+}
+
+.weekly-workout-summary-list {
+    display: grid;
+    gap: 12px;
+    margin: 14px 0 0;
+}
+
+.weekly-workout-summary-group {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+}
+
+.weekly-workout-summary-group ul {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.weekly-workout-summary-group li {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 9px 12px;
+    text-transform: uppercase;
+}
+
+.weekly-workout-summary-group li + li {
+    border-top: 1px solid var(--border);
+}
+
+.weekly-workout-summary-list strong {
+    min-width: 46px;
+    color: var(--accent);
+    font-size: 18px;
+    text-align: right;
 }
 
 .weekly-day {

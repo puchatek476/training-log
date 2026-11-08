@@ -41,6 +41,11 @@
     </form>
 </div>
 
+<div id="applicationLoadingOverlay" class="application-loading-overlay" role="status" aria-live="polite">
+    <span class="loading-spinner" aria-hidden="true"></span>
+    <span>Ładowanie treningów i ustawień...</span>
+</div>
+
 <div class="app">
 
 
@@ -351,6 +356,7 @@
     <main>
         <section class="workouts-section">
             <div id="weeklyWorkoutList" class="weekly-workout-list"></div>
+            <section id="weeklyWorkoutSummary" class="weekly-workout-summary" aria-live="polite"></section>
         </section>
     </main>
 

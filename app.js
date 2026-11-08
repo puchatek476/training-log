@@ -283,6 +283,9 @@ const backToHistoryFromWeeklyButton =
 const weeklyWorkoutList =
     document.querySelector("#weeklyWorkoutList");
 
+const weeklyWorkoutSummary =
+    document.querySelector("#weeklyWorkoutSummary");
+
 const rareExercisesView =
     document.querySelector("#rareExercisesView");
 
@@ -1818,11 +1821,19 @@ function renderWeeklyWorkoutList() {
                 <span>Pobieranie danych...</span>
             </div>
         `;
+        weeklyWorkoutSummary.innerHTML = "";
         return;
     }
 
     const todayKey = getTodayInternal();
     const today = new Date(`${todayKey}T12:00:00`);
+    const firstSummaryDate = new Date(today);
+    firstSummaryDate.setDate(today.getDate() - 6);
+    const summaryStartKey = [
+        firstSummaryDate.getFullYear(),
+        String(firstSummaryDate.getMonth() + 1).padStart(2, "0"),
+        String(firstSummaryDate.getDate()).padStart(2, "0")
+    ].join("-");
     const visibleDateKeys = new Set(
         Array.from({ length: 7 }, (_, index) => {
             const date = new Date(today);
@@ -1893,6 +1904,66 @@ function renderWeeklyWorkoutList() {
     });
 
     weeklyWorkoutList.innerHTML = days.join("");
+
+    const workoutCounts = new Map();
+    workouts
+        .filter(workout =>
+            workout.date >= summaryStartKey &&
+            workout.date <= todayKey
+        )
+        .forEach(workout => {
+            workout.name.split("+")
+                .map(name => name.trim())
+                .filter(Boolean)
+                .forEach(name => {
+                    const normalizedName = name.toLocaleLowerCase("pl-PL");
+                    const existing = workoutCounts.get(normalizedName);
+                    workoutCounts.set(normalizedName, {
+                        name: existing?.name || name,
+                        count: (existing?.count || 0) + 1
+                    });
+                });
+        });
+
+    const workoutGroups = new Map();
+    [...workoutCounts.values()].forEach(item => {
+        const [groupName] = item.name.split(/\s+/);
+        const groupKey = groupName.toLocaleLowerCase("pl-PL");
+        const group = workoutGroups.get(groupKey) || {
+            name: groupName,
+            items: []
+        };
+        group.items.push(item);
+        workoutGroups.set(groupKey, group);
+    });
+
+    const summaryItems = [...workoutGroups.values()]
+        .sort((a, b) => a.name.localeCompare(b.name, "pl"))
+        .map(group => {
+            const items = group.items
+                .sort((a, b) => a.name.localeCompare(b.name, "pl"))
+                .map(item => `
+                    <li>
+                        <strong>${item.count} ×</strong>
+                        <span>${escapeHtml(item.name)}</span>
+                    </li>
+                `)
+                .join("");
+
+            return `
+                <section class="weekly-workout-summary-group">
+                    <ul>${items}</ul>
+                </section>
+            `;
+        })
+        .join("");
+
+    weeklyWorkoutSummary.innerHTML = `
+        <h2>Treningi wykonane w ostatnich 7 dniach</h2>
+        ${summaryItems
+            ? `<div class="weekly-workout-summary-list">${summaryItems}</div>`
+            : '<p class="muted">Brak wykonanych treningów w tym okresie.</p>'}
+    `;
 
     weeklyWorkoutList
         .querySelectorAll(".weekly-day[data-workout-id]")
@@ -3510,14 +3581,36 @@ function renderExercise(
 
         const canGroupSet = set =>
             hasValue(set.weight) &&
-            hasValue(set.reps) &&
-            Object.entries(set).every(([key, value]) =>
-                ["id", "weight", "reps"].includes(key) || !hasValue(value)
-            );
+            hasValue(set.reps);
 
-        const setsHaveSameValues = (first, second) =>
-            Number(first.weight) === Number(second.weight) &&
-            Number(first.reps) === Number(second.reps);
+        const setsHaveSameValues = (first, second) => {
+            const fields = new Set([
+                ...Object.keys(first),
+                ...Object.keys(second)
+            ]);
+            fields.delete("id");
+
+            return [...fields].every(field => {
+                const firstValue = first[field];
+                const secondValue = second[field];
+                const firstHasValue = hasValue(firstValue);
+                const secondHasValue = hasValue(secondValue);
+
+                if (!firstHasValue || !secondHasValue) {
+                    return firstHasValue === secondHasValue;
+                }
+
+                if (NUMERIC_SET_FIELDS.includes(field)) {
+                    const firstNumber = Number(firstValue);
+                    const secondNumber = Number(secondValue);
+                    return Number.isFinite(firstNumber) &&
+                        Number.isFinite(secondNumber) &&
+                        firstNumber === secondNumber;
+                }
+
+                return String(firstValue) === String(secondValue);
+            });
+        };
 
         const getNumericWeight = set => {
             if (set.weight === null || set.weight === undefined || String(set.weight).trim() === "") {
@@ -6990,6 +7083,7 @@ async function loadDataFromSupabase() {
     }
 
     isWorkoutsLoading = true;
+    setApplicationLoading(true);
     renderWorkouts();
 
     dataLoadPromise = fetchDataFromSupabase()
@@ -6997,6 +7091,7 @@ async function loadDataFromSupabase() {
             isWorkoutsLoading = false;
             dataLoadPromise = null;
             refreshApp();
+            setApplicationLoading(false);
         });
 
     return dataLoadPromise;
@@ -7521,24 +7616,42 @@ const loginForm =
 const loginError =
     document.getElementById("login-error");
 
+const applicationLoadingOverlay =
+    document.getElementById("applicationLoadingOverlay");
+
 const app =
     document.querySelector(".app");
 
+function setApplicationLoading(isLoading) {
+    applicationLoadingOverlay.classList.toggle("hidden", !isLoading);
+    applicationLoadingOverlay.setAttribute("aria-busy", String(isLoading));
+}
+
 
 async function checkAuth() {
-    const {
-        data: { session }
-    } = await supabaseClient.auth.getSession();
+    try {
+        const {
+            data: { session },
+            error
+        } = await supabaseClient.auth.getSession();
+        if (error) throw error;
 
-    if (session) {
-
-        loginScreen.classList.remove("active");
-        app.classList.remove("hidden");
-
-        await loadDataFromSupabase();
-    } else {
+        if (session) {
+            loginScreen.classList.remove("active");
+            app.classList.remove("hidden");
+            await loadDataFromSupabase();
+        } else {
+            loginScreen.classList.add("active");
+            app.classList.add("hidden");
+            setApplicationLoading(false);
+        }
+    } catch (error) {
+        console.error("Błąd sprawdzania sesji użytkownika:", error);
         loginScreen.classList.add("active");
         app.classList.add("hidden");
+        loginError.textContent =
+            "Nie udało się sprawdzić sesji. Odśwież stronę lub zaloguj się ponownie.";
+        setApplicationLoading(false);
     }
 }
 
@@ -7581,6 +7694,7 @@ supabaseClient.auth.onAuthStateChange(
         if (event === "SIGNED_OUT") {
             loginScreen.classList.add("active");
             app.classList.add("hidden");
+            setApplicationLoading(false);
             return;
         }
 
@@ -7598,6 +7712,7 @@ supabaseClient.auth.onAuthStateChange(
         } else {
             loginScreen.classList.add("active");
             app.classList.add("hidden");
+            setApplicationLoading(false);
         }
     }
 );
