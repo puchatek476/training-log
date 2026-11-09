@@ -5653,6 +5653,39 @@ function loadHomeShortcutPreferences(savedIds) {
     homeShortcutsStatus.textContent = "";
 }
 
+function getCachedHomeShortcutPreferences(userId) {
+    if (!userId) return null;
+
+    try {
+        const cachedIds = JSON.parse(
+            localStorage.getItem(`training-log-home-shortcuts-cache:${userId}`)
+        );
+        const availableIds = new Set(HOME_SHORTCUT_OPTIONS.map(option => option.id));
+        return Array.isArray(cachedIds) &&
+            cachedIds.length === 4 &&
+            new Set(cachedIds).size === 4 &&
+            cachedIds.every(id => availableIds.has(id))
+            ? cachedIds
+            : null;
+    } catch (error) {
+        console.error("Błąd odczytu zapisanego układu przycisków:", error);
+        return null;
+    }
+}
+
+function cacheHomeShortcutPreferences(userId, shortcutIds) {
+    if (!userId) return;
+
+    try {
+        localStorage.setItem(
+            `training-log-home-shortcuts-cache:${userId}`,
+            JSON.stringify(shortcutIds)
+        );
+    } catch (error) {
+        console.error("Błąd zapisu układu przycisków w przeglądarce:", error);
+    }
+}
+
 async function migrateLegacyUserSettings() {
     if (!currentUserId) return;
 
@@ -5792,6 +5825,7 @@ homeShortcutsSetting.addEventListener("change", async event => {
         await saveUserSettings({ home_shortcut_ids: draftHomeShortcutIds });
         applyHomeShortcuts(draftHomeShortcutIds);
         homeShortcutIds = [...draftHomeShortcutIds];
+        cacheHomeShortcutPreferences(currentUserId, homeShortcutIds);
         homeShortcutsStatus.textContent = "Skróty zapisane.";
     } catch (error) {
         console.error("Błąd zapisu skrótów strony głównej:", error);
@@ -7082,8 +7116,14 @@ async function loadDataFromSupabase() {
         return dataLoadPromise;
     }
 
+    const cachedShortcutIds =
+        getCachedHomeShortcutPreferences(currentUserId);
+    if (cachedShortcutIds) {
+        loadHomeShortcutPreferences(cachedShortcutIds);
+    }
+
     isWorkoutsLoading = true;
-    setApplicationLoading(true);
+    setApplicationLoading(!cachedShortcutIds && isMainScreenVisible());
     renderWorkouts();
 
     dataLoadPromise = fetchDataFromSupabase()
@@ -7136,7 +7176,9 @@ async function fetchDataFromSupabase() {
         rareExercisesWorkoutCount.value = "10";
         rareExercisesSettingsStatus.textContent =
             "Nie udało się pobrać ustawienia z bazy.";
-        loadHomeShortcutPreferences(DEFAULT_HOME_SHORTCUT_IDS);
+        if (!getCachedHomeShortcutPreferences(currentUserId)) {
+            loadHomeShortcutPreferences(DEFAULT_HOME_SHORTCUT_IDS);
+        }
     } else {
         groupIdenticalSets = userSettings?.group_identical_sets === true;
         settingsStatus.textContent = "";
@@ -7150,6 +7192,7 @@ async function fetchDataFromSupabase() {
         rareExercisesSettingsStatus.textContent = "";
         loadHomeShortcutPreferences(userSettings?.home_shortcut_ids);
         await migrateLegacyUserSettings();
+        cacheHomeShortcutPreferences(currentUserId, homeShortcutIds);
     }
     groupIdenticalSetsSetting.checked = groupIdenticalSets;
 
@@ -7622,9 +7665,16 @@ const applicationLoadingOverlay =
 const app =
     document.querySelector(".app");
 
+function isMainScreenVisible() {
+    return !app.classList.contains("hidden") &&
+        !historyView.classList.contains("hidden") &&
+        activeWorkoutView.classList.contains("hidden");
+}
+
 function setApplicationLoading(isLoading) {
-    applicationLoadingOverlay.classList.toggle("hidden", !isLoading);
-    applicationLoadingOverlay.setAttribute("aria-busy", String(isLoading));
+    const shouldShow = isLoading && isMainScreenVisible();
+    applicationLoadingOverlay.classList.toggle("hidden", !shouldShow);
+    applicationLoadingOverlay.setAttribute("aria-busy", String(shouldShow));
 }
 
 
@@ -7639,6 +7689,7 @@ async function checkAuth() {
         if (session) {
             loginScreen.classList.remove("active");
             app.classList.remove("hidden");
+            currentUserId = session.user.id;
             await loadDataFromSupabase();
         } else {
             loginScreen.classList.add("active");
@@ -7701,6 +7752,7 @@ supabaseClient.auth.onAuthStateChange(
         if (session) {
             loginScreen.classList.remove("active");
             app.classList.remove("hidden");
+            currentUserId = session.user.id;
 
             if (
                 event === "SIGNED_IN" ||
