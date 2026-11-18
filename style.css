@@ -484,6 +484,14 @@ margin: 12px 0 0;
     font-weight: 500;
 }
 
+.workout-history-notes {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .home-shortcut-option input:disabled {
     cursor: not-allowed;
     opacity: 0.55;
@@ -583,6 +591,10 @@ grid-template-columns: repeat(7, minmax(0, 1fr));
 gap: 10px;
 }
 
+#weeklyView main > .workouts-section {
+padding-bottom: 20px;
+}
+
 .weekly-workout-summary {
     margin-top: 20px;
     padding: 18px 20px;
@@ -673,6 +685,17 @@ gap: 8px;
 }
 
 .weekly-today-badge {
+padding: 3px 6px;
+border-radius: 6px;
+background: var(--surface-3);
+color: var(--muted);
+font-size: 9px;
+font-weight: 800;
+letter-spacing: 0.06em;
+}
+
+.weekly-workout-names .weekly-rest-label {
+width: fit-content;
 padding: 3px 6px;
 border-radius: 6px;
 background: var(--surface-3);
@@ -1098,7 +1121,12 @@ width: 100%;
 margin-top: 20px;
 color: var(--text);
 text-align: left;
-cursor: default;
+cursor: pointer;
+}
+
+.workout-empty-state:focus-visible {
+outline: 2px solid var(--accent);
+outline-offset: 3px;
 }
 
 .workout-empty-actions {

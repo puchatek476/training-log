@@ -265,6 +265,12 @@ const showPastTrainingPlansSetting =
 const pastTrainingPlansStatus =
     document.querySelector("#pastTrainingPlansStatus");
 
+const showWorkoutNotesInHistorySetting =
+    document.querySelector("#showWorkoutNotesInHistorySetting");
+
+const workoutHistoryNotesStatus =
+    document.querySelector("#workoutHistoryNotesStatus");
+
 const homeShortcutsSetting =
     document.querySelector("#homeShortcutsSetting");
 
@@ -429,7 +435,6 @@ const confirmMovePlannedExerciseButton =
 let activeTrainingPlanWorkoutId = null;
 let movingPlannedExerciseId = null;
 let movingPlannedExerciseWorkoutId = null;
-let isCreatingWorkoutFromPlan = false;
 const plannedSetsSaveTimers = new Map();
 const plannedSetsSaveQueues = new Map();
 
@@ -616,6 +621,7 @@ let isExerciseOrderSaving = false;
 let isActiveWorkoutGymEditing = false;
 let groupIdenticalSets = false;
 let showPastTrainingPlans = false;
+let showWorkoutNotesInHistory = true;
 let currentUserId = null;
 const pendingSetSaveQueues = new Map();
 const HOME_SHORTCUT_OPTIONS = [
@@ -833,13 +839,18 @@ function setWorkoutEditing(isEditing) {
 
     editWorkoutButton.textContent =
         isWorkoutEditing ? "Zakończ edycję" : "Edytuj";
-    addExerciseButton.classList.toggle(
-        "hidden",
-        !isWorkoutEditing
-    );
+    updateAddExerciseButtonVisibility();
     document.body.classList.toggle(
         "editing-workout",
         isWorkoutEditing
+    );
+}
+
+function updateAddExerciseButtonVisibility() {
+    const workout = workouts.find(item => item.id === activeWorkoutId);
+    addExerciseButton.classList.toggle(
+        "hidden",
+        !isWorkoutEditing || !workout?.exercises.length
     );
 }
 
@@ -1897,7 +1908,7 @@ function renderWeeklyWorkoutList() {
                     <p>${escapeHtml(formattedDate)}</p>
                 </div>
                 <ul class="weekly-workout-names">
-                    ${workoutNames}
+                    ${workoutNames || '<li class="weekly-rest-label">REST</li>'}
                 </ul>
             </article>
         `;
@@ -2687,6 +2698,10 @@ workoutsList.innerHTML =
                        </div>`
                     : ""}
 
+                ${showWorkoutNotesInHistory && workout.notes?.trim()
+                    ? `<p class="workout-history-notes">${escapeHtml(workout.notes.trim())}</p>`
+                    : ""}
+
             </article>
         `;
 
@@ -2744,6 +2759,9 @@ function renderWorkoutExerciseHistory(workout, matchingExercises) {
                         ${formatDate(workout.date)}
                         ${relativeDateLabel ? `<span class="relative-date-badge">${escapeHtml(relativeDateLabel)}</span>` : ""}
                     </div>
+                    ${showWorkoutNotesInHistory && workout.notes?.trim()
+                        ? `<p class="workout-history-notes">${escapeHtml(workout.notes.trim())}</p>`
+                        : ""}
                 </div>
             </div>
             <div class="exercise-history-compact">
@@ -2801,6 +2819,10 @@ function openWorkout(id, startEditing = false) {
 
 
     historyView.classList.add(
+        "hidden"
+    );
+
+    trainingPlanView.classList.add(
         "hidden"
     );
 
@@ -2934,6 +2956,7 @@ function renderActiveWorkout() {
 
     if (!workout) return;
 
+    updateAddExerciseButtonVisibility();
     renderActiveWorkoutGymControl(workout);
 
     const nameField =
@@ -3000,17 +3023,19 @@ function renderActiveWorkout() {
 if (!workout.exercises.length) {
     const canOpenTrainingPlan = canOpenWorkoutTrainingPlan(workout);
     activeExercises.innerHTML = `
-        <div class="workout-card workout-empty-state">
+        <div
+            class="workout-card workout-empty-state"
+            tabindex="0"
+            aria-label="Brak ćwiczeń. Dodaj pierwsze ćwiczenie do treningu."
+        >
             <h3>Brak ćwiczeń</h3>
             <p class="muted">Dodaj pierwsze ćwiczenie do treningu.</p>
             <div class="workout-empty-actions">
-                ${!isWorkoutEditing ? `
-                    <button
-                        type="button"
-                        class="button button-secondary"
-                        data-add-first-workout-exercise
-                    >Dodaj ćwiczenie</button>
-                ` : ""}
+                <button
+                    type="button"
+                    class="button button-secondary"
+                    data-add-first-workout-exercise
+                >Dodaj ćwiczenie</button>
                 ${canOpenTrainingPlan ? `
                     <button
                         type="button"
@@ -3025,13 +3050,29 @@ if (!workout.exercises.length) {
     const addFirstExerciseButton =
         activeExercises.querySelector("[data-add-first-workout-exercise]");
 
-    if (addFirstExerciseButton) {
-        addFirstExerciseButton.addEventListener("click", () => {
-            setWorkoutEditing(true);
-            renderActiveWorkout();
-            addExercise();
-        });
-    }
+    const emptyState = activeExercises.querySelector(".workout-empty-state");
+    const openAddExercise = () => {
+        setWorkoutEditing(true);
+        renderActiveWorkout();
+        addExercise();
+    };
+
+    emptyState.addEventListener("click", event => {
+        if (event.target.closest("button")) return;
+        openAddExercise();
+    });
+    emptyState.addEventListener("keydown", event => {
+        if (
+            event.target !== emptyState ||
+            (event.key !== "Enter" && event.key !== " ")
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        openAddExercise();
+    });
+    addFirstExerciseButton?.addEventListener("click", openAddExercise);
 
     attachTrainingPlanLinks();
     return;
@@ -4478,6 +4519,10 @@ async function addSet(exerciseIndex) {
     const sbdExerciseBaseName =
         getSbdExerciseBaseName(exercise.name);
 
+    if (previousSet && config?.fields?.includes("weight")) {
+        setData.weight = previousSet.weight ?? "";
+    }
+
     if (
         previousSet &&
         (
@@ -5104,9 +5149,7 @@ async function moveExercise(exerciseIndex, direction) {
 
 /* NEW WORKOUT */
 
-function openNewWorkoutDialog(fromTrainingPlan = false) {
-
-isCreatingWorkoutFromPlan = fromTrainingPlan;
+function openNewWorkoutDialog() {
 
 workoutForm.reset();
 
@@ -5244,8 +5287,6 @@ workoutForm.addEventListener(
         workouts.push(
             newWorkout
         );
-        const createdFromPlan = isCreatingWorkoutFromPlan;
-        isCreatingWorkoutFromPlan = false;
         saveWorkoutButton.disabled = false;
 
 
@@ -5254,14 +5295,10 @@ workoutForm.addEventListener(
 
         refreshApp();
 
-        if (createdFromPlan) {
-            openTrainingPlan(newWorkout.id);
-        } else {
-            openWorkout(
-                newWorkout.id,
-                true
-            );
-        }
+        openWorkout(
+            newWorkout.id,
+            true
+        );
 
     }
 );
@@ -5562,6 +5599,7 @@ async function saveUserSettings(updates) {
             user_id: currentUserId,
             group_identical_sets: groupIdenticalSets,
             show_past_training_plans: showPastTrainingPlans,
+            show_workout_notes_in_history: showWorkoutNotesInHistory,
             home_shortcut_ids: homeShortcutIds,
             rare_exercises_workout_count: rareExercisesWorkoutLimit,
             ...updates
@@ -5573,6 +5611,12 @@ function loadPastTrainingPlanPreference(value) {
     showPastTrainingPlans = value === true;
     showPastTrainingPlansSetting.checked = showPastTrainingPlans;
     pastTrainingPlansStatus.textContent = "";
+}
+
+function loadWorkoutHistoryNotesPreference(value) {
+    showWorkoutNotesInHistory = value !== false;
+    showWorkoutNotesInHistorySetting.checked = showWorkoutNotesInHistory;
+    workoutHistoryNotesStatus.textContent = "";
 }
 
 showPastTrainingPlansSetting.addEventListener("change", async () => {
@@ -5597,6 +5641,34 @@ showPastTrainingPlansSetting.addEventListener("change", async () => {
         pastTrainingPlansStatus.textContent = "Nie udało się zapisać ustawienia.";
     } finally {
         showPastTrainingPlansSetting.disabled = false;
+    }
+});
+
+showWorkoutNotesInHistorySetting.addEventListener("change", async () => {
+    if (!currentUserId) {
+        showWorkoutNotesInHistorySetting.checked = showWorkoutNotesInHistory;
+        workoutHistoryNotesStatus.textContent =
+            "Zaloguj się ponownie, aby zapisać ustawienie.";
+        return;
+    }
+
+    const nextValue = showWorkoutNotesInHistorySetting.checked;
+    showWorkoutNotesInHistorySetting.disabled = true;
+    workoutHistoryNotesStatus.textContent = "Zapisywanie ustawienia...";
+    try {
+        await saveUserSettings({
+            show_workout_notes_in_history: nextValue
+        });
+        showWorkoutNotesInHistory = nextValue;
+        workoutHistoryNotesStatus.textContent = "Ustawienie zapisane.";
+        renderWorkouts();
+    } catch (error) {
+        console.error("Błąd zapisu widoczności notatek treningu w historii:", error);
+        showWorkoutNotesInHistorySetting.checked = showWorkoutNotesInHistory;
+        workoutHistoryNotesStatus.textContent =
+            "Nie udało się zapisać ustawienia.";
+    } finally {
+        showWorkoutNotesInHistorySetting.disabled = false;
     }
 });
 
@@ -5850,6 +5922,7 @@ settingsViewButton.addEventListener(
         rareExercisesView.classList.add("hidden");
         settingsStatus.textContent = "";
         pastTrainingPlansStatus.textContent = "";
+        workoutHistoryNotesStatus.textContent = "";
         homeShortcutsStatus.textContent = "";
         settingsView.classList.remove("hidden");
     }
@@ -6506,9 +6579,7 @@ trainingPlanViewButton.addEventListener("click", () => {
     openTrainingPlan();
 });
 
-addTrainingPlanWorkoutButton.addEventListener("click", () => {
-    openNewWorkoutDialog(true);
-});
+addTrainingPlanWorkoutButton.addEventListener("click", openNewWorkoutDialog);
 
 backToHistoryFromTrainingPlanButton.addEventListener("click", () => {
     trainingPlanView.classList.add("hidden");
@@ -7043,10 +7114,6 @@ cancelDialogButton.addEventListener(
 () => workoutDialog.close()
 );
 
-workoutDialog.addEventListener("close", () => {
-    isCreatingWorkoutFromPlan = false;
-});
-
 addExerciseButton.addEventListener(
 "click",
 addExercise
@@ -7159,6 +7226,7 @@ async function fetchDataFromSupabase() {
         .select([
             "group_identical_sets",
             "show_past_training_plans",
+            "show_workout_notes_in_history",
             "home_shortcut_ids",
             "rare_exercises_workout_count"
         ].join(","))
@@ -7172,6 +7240,7 @@ async function fetchDataFromSupabase() {
         groupIdenticalSets = false;
         groupIdenticalSetsSetting.checked = false;
         loadPastTrainingPlanPreference(false);
+        loadWorkoutHistoryNotesPreference(false);
         rareExercisesWorkoutLimit = 10;
         rareExercisesWorkoutCount.value = "10";
         rareExercisesSettingsStatus.textContent =
@@ -7183,6 +7252,9 @@ async function fetchDataFromSupabase() {
         groupIdenticalSets = userSettings?.group_identical_sets === true;
         settingsStatus.textContent = "";
         loadPastTrainingPlanPreference(userSettings?.show_past_training_plans);
+        loadWorkoutHistoryNotesPreference(
+            userSettings?.show_workout_notes_in_history
+        );
         const savedWorkoutCount = Number(userSettings?.rare_exercises_workout_count);
         rareExercisesWorkoutLimit =
             Number.isInteger(savedWorkoutCount) && savedWorkoutCount > 0
