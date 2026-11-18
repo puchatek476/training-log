@@ -259,6 +259,12 @@ const backToHistoryFromSettingsButton =
 const groupIdenticalSetsSetting =
     document.querySelector("#groupIdenticalSetsSetting");
 
+const copyPreviousSetWeightSetting =
+    document.querySelector("#copyPreviousSetWeightSetting");
+
+const copyPreviousSetWeightStatus =
+    document.querySelector("#copyPreviousSetWeightStatus");
+
 const showPastTrainingPlansSetting =
     document.querySelector("#showPastTrainingPlansSetting");
 
@@ -620,6 +626,7 @@ let isWorkoutEditing = false;
 let isExerciseOrderSaving = false;
 let isActiveWorkoutGymEditing = false;
 let groupIdenticalSets = false;
+let copyPreviousSetWeight = true;
 let showPastTrainingPlans = false;
 let showWorkoutNotesInHistory = true;
 let currentUserId = null;
@@ -4519,7 +4526,11 @@ async function addSet(exerciseIndex) {
     const sbdExerciseBaseName =
         getSbdExerciseBaseName(exercise.name);
 
-    if (previousSet && config?.fields?.includes("weight")) {
+    if (
+        copyPreviousSetWeight &&
+        previousSet &&
+        config?.fields?.includes("weight")
+    ) {
         setData.weight = previousSet.weight ?? "";
     }
 
@@ -5588,6 +5599,12 @@ function canShowPlannedSetsForWorkout(workout) {
     return canOpenWorkoutTrainingPlan(workout) || showPastTrainingPlans;
 }
 
+function loadCopyPreviousSetWeightPreference(value) {
+    copyPreviousSetWeight = value !== false;
+    copyPreviousSetWeightStatus.textContent = "";
+    copyPreviousSetWeightSetting.checked = copyPreviousSetWeight;
+}
+
 async function saveUserSettings(updates) {
     if (!currentUserId) {
         throw new Error("Brak zalogowanego użytkownika.");
@@ -5598,6 +5615,7 @@ async function saveUserSettings(updates) {
         .upsert({
             user_id: currentUserId,
             group_identical_sets: groupIdenticalSets,
+            copy_previous_set_weight: copyPreviousSetWeight,
             show_past_training_plans: showPastTrainingPlans,
             show_workout_notes_in_history: showWorkoutNotesInHistory,
             home_shortcut_ids: homeShortcutIds,
@@ -5968,6 +5986,31 @@ groupIdenticalSetsSetting.addEventListener(
         }
     }
 );
+
+copyPreviousSetWeightSetting.addEventListener("change", async () => {
+    if (!currentUserId) {
+        copyPreviousSetWeightSetting.checked = copyPreviousSetWeight;
+        copyPreviousSetWeightStatus.textContent =
+            "Zaloguj się ponownie, aby zapisać ustawienie.";
+        return;
+    }
+
+    const nextValue = copyPreviousSetWeightSetting.checked;
+    copyPreviousSetWeightSetting.disabled = true;
+    copyPreviousSetWeightStatus.textContent = "Zapisywanie ustawienia...";
+    try {
+        await saveUserSettings({ copy_previous_set_weight: nextValue });
+        copyPreviousSetWeight = nextValue;
+        copyPreviousSetWeightStatus.textContent = "Ustawienie zapisane.";
+    } catch (error) {
+        console.error("Błąd zapisu ustawienia kopiowania ciężaru:", error);
+        copyPreviousSetWeightSetting.checked = copyPreviousSetWeight;
+        copyPreviousSetWeightStatus.textContent =
+            "Nie udało się zapisać ustawienia.";
+    } finally {
+        copyPreviousSetWeightSetting.disabled = false;
+    }
+});
 
 backToHistoryButton.addEventListener(
 "click",
@@ -7225,6 +7268,7 @@ async function fetchDataFromSupabase() {
         .from("user_settings")
         .select([
             "group_identical_sets",
+            "copy_previous_set_weight",
             "show_past_training_plans",
             "show_workout_notes_in_history",
             "home_shortcut_ids",
@@ -7239,6 +7283,7 @@ async function fetchDataFromSupabase() {
             "Nie udało się pobrać ustawień. Sprawdź, czy tabela user_settings zawiera wymagane kolumny.";
         groupIdenticalSets = false;
         groupIdenticalSetsSetting.checked = false;
+        loadCopyPreviousSetWeightPreference(true);
         loadPastTrainingPlanPreference(false);
         loadWorkoutHistoryNotesPreference(false);
         rareExercisesWorkoutLimit = 10;
@@ -7250,6 +7295,9 @@ async function fetchDataFromSupabase() {
         }
     } else {
         groupIdenticalSets = userSettings?.group_identical_sets === true;
+        loadCopyPreviousSetWeightPreference(
+            userSettings?.copy_previous_set_weight
+        );
         settingsStatus.textContent = "";
         loadPastTrainingPlanPreference(userSettings?.show_past_training_plans);
         loadWorkoutHistoryNotesPreference(
