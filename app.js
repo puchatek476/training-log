@@ -3835,17 +3835,17 @@ function renderExercise(
                     `;
                 }).join("");
 
-                const typeBadge =
-                    group.type && !highlightMaxWeight
-                        ? `<span class="workout-view-type-pill">${escapeHtml(group.type)}</span>`
+                const typeCaption =
+                    group.type
+                        ? `<div class="workout-view-type-caption">${escapeHtml(group.type)}</div>`
                         : "";
 
                 return `
                     <div class="workout-view-group">
+                        ${typeCaption}
                         <div class="workout-view-group-items">
                             ${rowsHtml}
                         </div>
-                        ${typeBadge}
                     </div>
                 `;
             }).join("");

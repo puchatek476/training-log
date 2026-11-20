@@ -2729,9 +2729,9 @@ background: rgba(247, 120, 101, 0.04);
 
 .workout-view-group {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 30px;
-    align-items: stretch;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 4px;
     width: 100%;
     margin-bottom: 0;
 }
@@ -2817,33 +2817,20 @@ background: rgba(247, 120, 101, 0.04);
     gap: 6px;
 }
 
-.workout-view-type-pill {
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100%;
-    width: 30px;
-    padding: 8px 4px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--surface-2);
+.workout-view-type-caption {
     color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    opacity: 0.72;
+    padding-left: 34px;
 }
 
 .exercise-history-compact .workout-view-group {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
-    gap: 6px;
+    gap: 0;
     width: 100%;
     margin-bottom: 0;
 }
@@ -2917,26 +2904,14 @@ background: rgba(247, 120, 101, 0.04);
     gap: 3px;
 }
 
-.exercise-history-compact .workout-view-type-pill {
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100%;
-    width: 28px;
-    padding: 6px 3px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface-2);
+.exercise-history-compact .workout-view-type-caption {
     color: var(--muted);
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    flex-shrink: 0;
+    font-weight: 600;
+    line-height: 1.2;
+    opacity: 0.72;
+    margin-top: 6px;
+    padding-left: 24px;
 }
 
 .workout-view-notes {
